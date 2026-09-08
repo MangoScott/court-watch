@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Court Watch: what happened to Ohio's tennis courts</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <header>
+      <h1>Court Watch</h1>
+      <p class="sub">Every mapped tennis court in <span id="state">Ohio</span>, what happened to it, and when. From public aerial imagery (NAIP), read by a vision model and spot-checked by hand.</p>
+    </header>
+    <section id="headline">
+      <div class="stat big"><div class="n" id="n-hybrid">–</div><div class="l">tennis courts with pickleball lines painted on <span class="tag hybrid">hybrid</span></div></div>
+      <div class="stats">
+        <div class="stat"><div class="n" id="n-tennis">–</div><div class="l">still tennis</div></div>
+        <div class="stat"><div class="n" id="n-pickleball">–</div><div class="l">converted footprints (<span id="n-pb-courts">–</span> pickleball courts)</div></div>
+        <div class="stat"><div class="n" id="n-padel">–</div><div class="l">padel</div></div>
+        <div class="stat"><div class="n" id="n-removed">–</div><div class="l">removed</div></div>
+      </div>
+      <p class="fine" id="fine"></p>
+    </section>
+    <section id="filters">
+      <h2>Show</h2>
+      <div id="class-filters"></div>
+      <label class="chk"><input type="checkbox" id="only-review"> only courts flagged for review</label>
+      <label class="chk"><input type="checkbox" id="only-changed"> only courts that changed</label>
+    </section>
+    <section id="detail" hidden>
+      <button id="close-detail" aria-label="close">×</button>
+      <h2 id="d-title">Court</h2>
+      <div id="d-class"></div>
+      <div id="d-history"></div>
+      <div class="slider-wrap">
+        <div class="year-pick">
+          <label>before <select id="before-year"></select></label>
+          <label>after <select id="after-year"></select></label>
+        </div>
+        <div id="slider">
+          <img id="img-before" alt="before">
+          <img id="img-after" alt="after">
+          <canvas id="overlay"></canvas>
+          <input type="range" id="range" min="0" max="100" value="50" aria-label="compare">
+          <div id="handle"></div>
+        </div>
+        <div class="dates"><span id="date-before"></span><span id="date-after"></span></div>
+      </div>
+      <div id="d-transitions"></div>
+      <p class="fine" id="d-meta"></p>
+    </section>
+    <footer>
+      <p>Classes: <span class="tag tennis">tennis</span> clean tennis lines · <span class="tag hybrid">hybrid</span> tennis with any pickleball lines · <span class="tag pickleball">pickleball</span> dedicated pickleball · <span class="tag padel">padel</span> · <span class="tag removed">removed</span> former court.</p>
+      <p>Imagery: USDA NAIP via Microsoft Planetary Computer. Locations: OpenStreetMap. Numbers are model output plus human corrections; anything flagged is still under review. <a href="https://github.com/MangoScott/court-watch">Code and data</a>.</p>
+    </footer>
+  </aside>
+  <div id="map"></div>
+</div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

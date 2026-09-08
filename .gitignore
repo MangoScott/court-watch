@@ -1,0 +1,28 @@
+# data: everything except small samples and validation configs
+data/*
+!data/README.md
+!data/validation/
+!data/samples/
+data/samples/**/*.png
+data/samples/**/*.tif
+
+# generated site data (rebuilt by 07_export.py)
+site/data/*
+!site/data/.gitkeep
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# ultralytics / torch
+runs/
+*.pt
+yolo*.yaml
+
+# misc
+.DS_Store
+.env

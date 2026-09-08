@@ -1,0 +1,23 @@
+# Sawyer Point Park, Cincinnati OH. Ground truth from Scott (in person):
+#   2019: 8 tennis courts
+#   now:  24 pickleball courts in total, 6 of which are drawn on top of the
+#         3 remaining tennis courts (so 3 hybrids + 18 dedicated pickleball
+#         courts on the footprints of the other 5 tennis courts).
+#
+# lat/lon are approximate (park centre near the courts); the check uses the
+# nearest site within radius_m. Adjust once 01_fetch_osm.py has run and the
+# actual site_id is known (data/osm/OH_sites.csv).
+name: Sawyer Point Park tennis courts
+lat: 39.0975
+lon: -84.4966
+radius_m: 400
+tolerance: 0
+expect:
+  2019:
+    tennis_footprints: 8   # tennis + hybrid; 8 courts existed
+    tennis: 8
+    pickleball: 0
+  latest:
+    hybrid: 3
+    tennis: 0
+    pickleball_courts: 18
