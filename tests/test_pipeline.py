@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from conftest import ROOT, load_script
+from conftest import ROOT, SITE_LAT, load_script
 
 PY = sys.executable
 S = ROOT / "scripts"
@@ -24,7 +24,7 @@ def test_change_detection_export_validate_spotcheck(sawyer_site, tmp_path):
     site = tracks["sites"][sawyer_site["site_id"]]
     assert len(site["courts"]) == 8
     assert site["courts"][0]["ring_lonlat"] is not None
-    assert abs(site["courts"][0]["lat"] - 39.0975) < 0.002
+    assert abs(site["courts"][0]["lat"] - SITE_LAT) < 0.002
     assert (change / "review_queue.csv").exists()
 
     # validate.py against the committed Sawyer Point expectations
