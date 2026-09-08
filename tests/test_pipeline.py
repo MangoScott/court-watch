@@ -44,14 +44,14 @@ def test_change_detection_export_validate_spotcheck(sawyer_site, tmp_path):
     assert row["tennis_to_hybrid"] == "3" and row["tennis_or_hybrid_to_pickleball"] == "5"
     assert (site_dir / "data" / "courts_points.geojson").exists()
     sites_json = json.loads((site_dir / "data" / "sites.json").read_text())
-    assert set(sites_json[sawyer_site["site_id"]]["images"]) == {"2019", "2023", "2025"}
-    assert (site_dir / "data" / "chips" / sawyer_site["site_id"] / "2025.jpg").exists()
+    assert set(sites_json[sawyer_site["site_id"]]["images"]) == {"2019", "2021", "2023"}
+    assert (site_dir / "data" / "chips" / sawyer_site["site_id"] / "2023.jpg").exists()
 
     # overrides change the export but not the raw tracks
     ov = tmp_path / "overrides.csv"
     tid = site["courts"][7]["track_id"]
     ov.write_text("site_id,track_id,year,class,reviewer,note\n"
-                  f"{sawyer_site['site_id']},{tid},2025,tennis,scott,lines repainted\n")
+                  f"{sawyer_site['site_id']},{tid},2023,tennis,scott,lines repainted\n")
     run(S / "07_export.py", "--tracks", change / "court_tracks_raw.json", "--chips-dir", sawyer_site["chips"],
         "--out-dir", out, "--site-dir", site_dir, "--no-county", "--overrides", ov)
     with open(out / "summary_by_state.csv") as f:
@@ -92,7 +92,7 @@ def test_choose_chips_prefers_latest(sawyer_site):
     chips = list_chips(sawyer_site["chips"])
     assert len(chips) == 3
     picked = m.choose_chips(chips, 1, 0, None, False, None)
-    assert picked[0]["year"] == 2025
+    assert picked[0]["year"] == 2023
     assert len(m.choose_chips(chips, None, 0, None, True, sawyer_site["site_id"])) == 3
 
 
@@ -120,4 +120,4 @@ def test_rare_only_and_recent_sampling(sawyer_site):
     rare = m.sample_candidates(cands, 100, 0, set(), None, rare_only=True)
     assert {c["court"]["court_id"] for c in rare} == {"b", "c"}
     recent = m.sample_candidates(cands, 100, 0, set(), None, recent=1)
-    assert {c["chip"]["year"] for c in recent} == {2025}
+    assert {c["chip"]["year"] for c in recent} == {2023}

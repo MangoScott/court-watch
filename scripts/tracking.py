@@ -61,14 +61,23 @@ class Observation:
     imagery_date: str | None = None
     notes: str = ""
     source: str = ""
+    probs: dict | None = None       # per-class probabilities when the detector provides them
+    smoothed: bool = False          # class changed by temporal smoothing
+    raw_cls: str | None = None      # detector's class before smoothing
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "year": self.year, "class": self.cls, "confidence": round(self.confidence, 3),
             "obb": self.obb, "n_courts": self.n_courts, "inferred": self.inferred,
             "interpolated": self.interpolated, "imagery_date": self.imagery_date,
             "notes": self.notes, "source": self.source,
         }
+        if self.probs:
+            d["probs"] = {k: round(float(v), 3) for k, v in self.probs.items()}
+        if self.smoothed:
+            d["smoothed"] = True
+            d["raw_class"] = self.raw_cls
+        return d
 
 
 @dataclass
@@ -116,6 +125,7 @@ def track_site(
     detections_by_year: dict[int, dict],
     iou_min: float = 0.3,
     centroid_buffer_px: float = 2.0,
+    smooth: bool = True,
 ) -> list[Track]:
     """Build tracks for one site.
 
@@ -179,6 +189,7 @@ def track_site(
                     year=year, cls=c["class"], confidence=float(c.get("confidence", 0)),
                     obb=c["obb"], n_courts=_n_courts(c),
                     imagery_date=imagery_date, source=source, notes=c.get("notes", "") or "",
+                    probs=c.get("probs"),
                 ))
                 used[i] = True
 
@@ -192,6 +203,7 @@ def track_site(
                     year=year, cls=c["class"], confidence=float(c.get("confidence", 0)),
                     obb=c["obb"], n_courts=_n_courts(c),
                     imagery_date=imagery_date, source=source, notes=c.get("notes", "") or "",
+                    probs=c.get("probs"),
                 )],
             ))
 
@@ -207,6 +219,8 @@ def track_site(
 
     for tr in tracks:
         _fill_detector_gaps(tr)
+        if smooth:
+            smooth_track(tr)
     return tracks
 
 
@@ -218,6 +232,53 @@ def _n_courts(c: dict) -> int | None:
         return int(c.get("n_courts", 1) or 1)
     except (TypeError, ValueError):
         return 1
+
+
+def smooth_track(tr: Track, weights: tuple[float, float, float] = (0.25, 0.5, 0.25)) -> None:
+    """Temporal smoothing of per-year classes.
+
+    A court's paint does not change every imagery year, but a per-image
+    classifier at 0.6 m/px flickers, above all between tennis and hybrid.
+    Where the detector reports class probabilities, each year's class is the
+    argmax of a weighted average of its own probabilities and its two
+    neighbours' (0.25/0.5/0.25); the first and last years use the available
+    neighbour. Without probabilities, a single-year island whose neighbours
+    agree takes the neighbours' class. Changed observations are marked
+    ``smoothed`` and keep ``raw_class`` so nothing is hidden.
+    """
+    obs = [o for o in tr.observations if not o.inferred]
+    if len(obs) < 2:
+        return
+    have_probs = all(o.probs for o in obs)
+    if have_probs:
+        keys = sorted({k for o in obs for k in o.probs})
+        new = []
+        for i, o in enumerate(obs):
+            acc = {k: 0.0 for k in keys}
+            total = 0.0
+            for j, w in ((i - 1, weights[0]), (i, weights[1]), (i + 1, weights[2])):
+                if 0 <= j < len(obs):
+                    for k in keys:
+                        acc[k] += w * float(obs[j].probs.get(k, 0.0))
+                    total += w
+            avg = {k: v / total for k, v in acc.items()}
+            avg.pop(UNUSABLE, None)
+            cls = max(avg, key=avg.get)
+            new.append((cls, avg[cls]))
+        for o, (cls, conf) in zip(obs, new):
+            if cls in CLASSES and cls != o.cls:
+                o.raw_cls, o.cls, o.confidence, o.smoothed = o.cls, cls, conf, True
+                if cls != "pickleball" and o.n_courts is None:
+                    o.n_courts = 1
+            elif cls == o.cls:
+                o.confidence = max(o.confidence, conf)
+    else:
+        for i in range(1, len(obs) - 1):
+            a, b, c = obs[i - 1], obs[i], obs[i + 1]
+            if b.cls != a.cls and a.cls == c.cls and not b.smoothed:
+                b.raw_cls, b.cls, b.smoothed = b.cls, a.cls, True
+                b.confidence = min(a.confidence, c.confidence)
+                b.n_courts = a.n_courts
 
 
 def _fill_detector_gaps(tr: Track) -> None:
@@ -333,7 +394,8 @@ def tracks_from_dicts(records: list[dict]) -> list[Track]:
             year=int(h["year"]), cls=h["class"], confidence=float(h["confidence"]),
             obb=h["obb"], n_courts=_n_courts(h), inferred=bool(h.get("inferred")),
             interpolated=bool(h.get("interpolated")), imagery_date=h.get("imagery_date"),
-            notes=h.get("notes", ""), source=h.get("source", ""),
+            notes=h.get("notes", ""), source=h.get("source", ""), probs=h.get("probs"),
+            smoothed=bool(h.get("smoothed")), raw_cls=h.get("raw_class"),
         ) for h in rec["history"]]
         out.append(Track(track_id=rec["track_id"], observations=obs))
     return out
