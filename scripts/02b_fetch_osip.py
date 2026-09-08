@@ -64,12 +64,12 @@ DEFAULT_SERVICES = [
 UA = {"User-Agent": "court-watch/0.1 (github.com/MangoScott/court-watch)"}
 
 
-def get_json(url: str, params: dict | None = None, retries: int = 3) -> dict:
+def get_json(url: str, params: dict | None = None, retries: int = 2) -> dict:
     params = dict(params or {}, f="json")
     delay = 3
     for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, headers=UA, timeout=120)
+            r = requests.get(url, params=params, headers=UA, timeout=60)
             r.raise_for_status()
             data = r.json()
             if "error" in data:
@@ -168,7 +168,7 @@ def export_chip(service_url: str, lat: float, lon: float, size: int, gsd: float,
     }
     if raster_id is not None:
         params["mosaicRule"] = json.dumps({"mosaicMethod": "esriMosaicLockRaster", "lockRasterIds": [int(raster_id)]})
-    r = requests.get(f"{service_url}/exportImage", params=params, headers=UA, timeout=180)
+    r = requests.get(f"{service_url}/exportImage", params=params, headers=UA, timeout=120)
     r.raise_for_status()
     if not r.headers.get("content-type", "").startswith("image"):
         raise RuntimeError(f"exportImage returned {r.headers.get('content-type')}: {r.text[:200]}")
