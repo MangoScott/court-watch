@@ -1,0 +1,10 @@
+state,county,footprints,current_tennis,current_hybrid,current_pickleball,current_padel,current_removed,current_unknown,pickleball_courts,pickleball_footprints_uncounted,ever_tennis,tennis_to_hybrid,tennis_or_hybrid_to_pickleball,tennis_or_hybrid_to_padel,tennis_or_hybrid_to_removed,needs_review,reviewed_courts
+OH,Butler,194,184,1,2,0,7,0,6,0,192,2,2,0,11,45,0
+OH,Darke,20,20,0,0,0,0,0,0,0,20,0,0,0,0,2,0
+OH,Defiance,5,4,1,0,0,0,0,0,0,5,1,0,0,0,1,0
+OH,Hamilton,518,490,0,2,0,26,0,0,2,511,6,3,0,35,113,0
+OH,Mercer,22,22,0,0,0,0,0,0,0,22,0,0,0,1,1,0
+OH,Paulding,1,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0
+OH,Preble,21,21,0,0,0,0,0,0,0,21,0,1,0,1,7,0
+OH,Van Wert,11,11,0,0,0,0,0,0,0,11,0,0,0,0,2,0
+OH,Williams,17,17,0,0,0,0,0,0,0,17,0,0,0,0,1,0

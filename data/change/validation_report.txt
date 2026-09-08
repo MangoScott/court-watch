@@ -1,0 +1,12 @@
+
+== Sawyer Point Park tennis courts ==
+  site oh_3910279_-8449653 (0 m away), years [2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+  PASS 2019 tennis_footprints: expected 8, got 8
+  PASS 2019 tennis: expected 8, got 8
+  PASS 2019 pickleball: expected 0, got 0
+  FAIL 2023 hybrid: expected 3, got 0
+  FAIL 2023 tennis: expected 0, got 8
+  FAIL 2023 pickleball: expected 5, got 0
+  FAIL 2023 pickleball_courts: expected 18, got 0
+
+SOME CHECKS FAILED
