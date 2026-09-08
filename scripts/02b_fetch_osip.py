@@ -69,7 +69,7 @@ def get_json(url: str, params: dict | None = None, retries: int = 2) -> dict:
     delay = 3
     for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, headers=UA, timeout=60)
+            r = requests.get(url, params=params, headers=UA, timeout=45)
             r.raise_for_status()
             data = r.json()
             if "error" in data:
@@ -241,9 +241,27 @@ def probe(lat: float | None, lon: float | None, out_dir: Path, services: list[st
     return 0
 
 
+def preflight(services: list[str], timeout: float = 20.0) -> bool:
+    """One quick metadata request per service. The state's servers sometimes
+    accept connections and never answer; without this check a fetch over
+    thousands of sites would hang for hours."""
+    for svc in services:
+        try:
+            r = requests.get(svc, params={"f": "json"}, headers=UA, timeout=timeout)
+            r.raise_for_status()
+            if "pixelSizeX" in r.json():
+                return True
+        except (requests.RequestException, ValueError):
+            continue
+    return False
+
+
 def fetch(args) -> int:
     import importlib
     naip = importlib.import_module("02_fetch_naip")
+    if not preflight(args.service):
+        log.warning("OSIP services did not answer a %ss metadata request; skipping OSIP fetch this run", 20)
+        return 0
     sites = naip.load_sites(args)
     log.info("%d sites; services %s", len(sites), args.service)
     stats = {"sites": 0, "fetched": 0, "skipped": 0, "no_imagery": 0, "failed": 0}
