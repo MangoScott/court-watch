@@ -163,9 +163,14 @@ upsampled (the sidecar records `source_gsd`). Because the grid never changes,
 OSM court polygon into one rotated rectangle per court, splitting banks by
 standard court dimensions (36.6 x 18.3 m tennis, 18.3 x 9.1 m pickleball) and
 flagging what it had to guess. `crops.py` cuts each footprint out of a chip as
-an upright 160 x 320 crop. The classifier only has to answer "which of the five
-classes is this court?", which is a much easier problem than finding courts
-from scratch, so a few hundred labels are enough.
+an upright 160 x 320 crop covering a fixed 46 x 23 m of ground (larger only when
+the footprint itself is bigger), so absolute size is preserved: a tennis court
+fills most of the frame, a single pickleball court stays small, and a court
+mapped by its playing lines looks the same as one mapped by its fence. The
+classifier only has to answer "which of the five classes is this court?", which
+is a much easier problem than finding courts from scratch, so a few hundred
+labels are enough. `data/crops/train/CROP_VERSION` records the crop geometry;
+when it changes, the training crops are rebuilt from the cached chips.
 
 OSM reflects today's geometry, so a converted tennis court shows up as four
 small pickleball polygons. `aggregate_pickleball` folds contiguous pickleball

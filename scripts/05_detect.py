@@ -62,7 +62,7 @@ def run_classifier(chips: list[dict], det_dir: Path, weights: Path, courts_csv: 
         raise SystemExit(f"{weights} missing; run 04_train_classifier.py first")
     import importlib
     from PIL import Image
-    from crops import crop_court, lonlat_ring_to_pixels, pixels_to_norm_obb
+    from crops import crop_court, ground_window_px, lonlat_ring_to_pixels, pixels_to_norm_obb
     from common import read_csv, read_json
     import json as _json
 
@@ -86,10 +86,11 @@ def run_classifier(chips: list[dict], det_dir: Path, weights: Path, courts_csv: 
         if courts and not rec["unusable"]:
             sidecar = read_json(chip["sidecar"])
             size = int(sidecar.get("size", 512))
+            min_long, min_short = ground_window_px(sidecar)
             with Image.open(chip["png"]) as im:
                 im = im.convert("RGB")
                 pts_list = [lonlat_ring_to_pixels(c["ring"], sidecar) for c in courts]
-                tensors = [tf(crop_court(im, pts)) for pts in pts_list]
+                tensors = [tf(crop_court(im, pts, min_long=min_long, min_short=min_short)) for pts in pts_list]
             with torch.no_grad():
                 probs = []
                 for s0 in range(0, len(tensors), batch):

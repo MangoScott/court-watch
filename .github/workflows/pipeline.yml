@@ -16,7 +16,7 @@ name: Run pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/court-watch-tennis-tracking-e5zstu]   # working branch: still the default branch, where the schedule runs
     paths: [pipeline_run.yaml]
   schedule:
     - cron: "17 */4 * * *"   # every 4 hours: fetch the next chunk of sites and re-run
@@ -72,14 +72,15 @@ jobs:
             python - <<'PY' >> $GITHUB_OUTPUT
           import json, os, pathlib, yaml
           d = yaml.safe_load(open("pipeline_run.yaml"))
-          if "${{ github.event_name }}" == "schedule":
-              # unattended: continue from where the last run stopped, never make sheets
-              prog = pathlib.Path("data/progress.json")
-              p = json.loads(prog.read_text()) if prog.exists() else {}
+          prog = pathlib.Path("data/progress.json")
+          p = json.loads(prog.read_text()) if prog.exists() else {}
+          if "${{ github.event_name }}" == "schedule" or str(d.get("offset")).lower() == "auto":
+              # continue from where the last run stopped (offset: auto, or unattended schedule)
               d["offset"] = int(p.get("next_offset", 0))
-              d["force_label"] = False
               if p.get("done"):
                   d["limit"] = 0
+          if "${{ github.event_name }}" == "schedule":
+              d["force_label"] = False
           for k in ("state", "limit", "offset", "sheets", "sheets_rare", "min_labels", "force_label"):
               print(f"{k}={str(d.get(k, '')).lower() if k == 'force_label' else d.get(k, '')}")
           PY

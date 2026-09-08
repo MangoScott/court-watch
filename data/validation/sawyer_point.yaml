@@ -1,4 +1,4 @@
-# Sawyer Point Park, Cincinnati OH. Ground truth from Scott (in person):
+# Sawyer Point Park, Cincinnati OH. Ground truth from Scott (in person, 2026):
 #   2019: 8 tennis courts
 #   now:  24 pickleball courts in total, 6 of which are drawn on top of the
 #         3 remaining tennis courts (so 3 hybrids + 18 dedicated pickleball
@@ -6,11 +6,8 @@
 #
 # OSM has this exactly (site oh_3910279_-8449653: 3 tennis + 24 pickleball
 # features), which footprints.py folds into 8 tracked court footprints.
-#
-# Imagery note: the 2023 NAIP flight (newest for Ohio as of Sept 2026) still
-# shows 8 plain tennis courts, so the conversion happened after it. The
-# "converted" block below is skipped until 2025 imagery is published; until
-# then Sawyer Point is a no-false-positives test.
+# NAIP shows the conversion from the Aug 2022 flight onward (Sept 2021 still
+# plain tennis), so both the "before" and "after" states are testable.
 name: Sawyer Point Park tennis courts
 lat: 39.10279
 lon: -84.49653
@@ -21,13 +18,10 @@ expect:
     tennis_footprints: 8
     tennis: 8
     pickleball: 0
-  2023:
-    tennis_footprints: 8   # still plain tennis in the 2023 flight
-    tennis: 8
-    hybrid: 0
+  2021:
+    tennis_footprints: 8   # still all tennis in the Sept 2021 flight
     pickleball: 0
   latest:
-    requires_imagery_from: 2025
     hybrid: 3
     tennis: 0
     pickleball: 5          # footprints

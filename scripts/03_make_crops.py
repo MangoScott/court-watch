@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,7 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     CHIPS_DIR, CLASSES, DATA, LABELS_DIR, OSM_DIR, list_chips, log, read_csv, read_json, setup_logging, write_csv,
 )
-from crops import CROP_H, CROP_W, contact_sheet, crop_from_chip  # noqa: E402
+from crops import CROP_H, CROP_VERSION, CROP_W, contact_sheet, crop_from_chip  # noqa: E402
 
 CROPS_DIR = DATA / "crops"
 PER_SHEET = 20
@@ -154,6 +155,13 @@ def make_sheets(picked: list[dict], out_dir: Path, chips_dir: Path) -> int:
 def export_training(labels: dict[str, dict], chips_dir: Path, courts: dict[str, list[dict]], out_dir: Path) -> dict:
     chips = {(c["site_id"], c["year"]): c for c in list_chips(chips_dir)}
     court_by_id = {court["court_id"]: court for cs in courts.values() for court in cs}
+    train_dir = out_dir / "train"
+    marker = train_dir / "CROP_VERSION"
+    if train_dir.exists() and (not marker.exists() or marker.read_text().strip() != str(CROP_VERSION)):
+        log.info("crop geometry changed (version %s); rebuilding %s", CROP_VERSION, train_dir)
+        shutil.rmtree(train_dir)
+    train_dir.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"{CROP_VERSION}\n")
     stats = {c: 0 for c in CLASSES + ["unusable"]}
     stats["skipped"] = 0
     for cid, row in labels.items():
