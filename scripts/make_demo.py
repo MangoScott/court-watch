@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from conftest import TENNIS_H, TENNIS_W, court_obb, make_site, sawyer_detections  # noqa: E402
+from synthetic import TENNIS_H, TENNIS_W, court_obb, make_site, sawyer_detections  # noqa: E402
 from common import SITE_DIR, make_site_id  # noqa: E402
 
 

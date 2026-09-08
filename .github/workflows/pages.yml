@@ -32,7 +32,7 @@ jobs:
           if [ -f site/data/summary.json ]; then
             echo "site/data present; deploying committed data"
           else
-            pip install -q geopandas shapely pyproj pyarrow pyogrio pillow numpy pandas pyyaml
+            pip install -q -r requirements.txt
             python scripts/make_demo.py
           fi
       - uses: actions/configure-pages@v5
