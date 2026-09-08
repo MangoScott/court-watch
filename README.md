@@ -55,8 +55,10 @@ python -m http.server -d site 8000         # http://localhost:8000
 
 ## Hosting and automation
 
-The map is served free by GitHub Pages at
-**https://mangoscott.github.io/court-watch/**. `.github/workflows/pages.yml`
+The site is served free by GitHub Pages at
+**https://mangoscott.github.io/court-watch/**: a results page (headline
+numbers, changes by year, before/after imagery of every court that changed,
+county table, downloads) and a map (`map.html`) with a per-court slider. `.github/workflows/pages.yml`
 redeploys it on every push to the default branch. Until real results are
 committed to `site/data/`, it deploys a clearly labelled synthetic demo.
 
@@ -231,7 +233,7 @@ scripts/
   spot_check.py           random sample -> HTML review grid
   validate.py             known-site checks (the Ohio gate)
   make_demo.py            synthetic data so the site can be previewed
-site/                     static MapLibre map (index.html, app.js, style.css)
+site/                     static site: index.html + results.js (results), map.html + app.js (map), style.css, results.css
 tests/                    offline pytest suite with a synthetic Sawyer Point
 data/                     gitignored except validation/ and README.md
 ```

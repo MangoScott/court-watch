@@ -12,11 +12,12 @@ data/output/
     summary_by_state.csv    counts per class + key transitions
     summary_by_county.csv   same by county (Census county boundaries, cached)
 
-site/data/  (consumed by the static MapLibre site in site/)
+site/data/  (consumed by the static site in site/: index.html results, map.html map)
     courts_points.geojson   one point per court with history for popups
     sites.json              per-site years, imagery dates, chip image paths
     summary.json            headline numbers
     chips/<site>/<year>.jpg before/after imagery
+    downloads/              copies of courts.geojson and the CSVs for the Data section
 
 Usage::
 
@@ -30,6 +31,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import shutil
 import sys
 import warnings
 import zipfile
@@ -157,7 +159,7 @@ def summarize(gdf, by: list[str]) -> list[dict]:
 
 
 def export_site_data(gdf, sites: dict[str, dict], chips_dir: Path, site_dir: Path, summary_state: list[dict],
-                     jpeg_quality: int, state: str) -> None:
+                     jpeg_quality: int, state: str, dataset_dir: Path = OUTPUT_DIR) -> None:
     from PIL import Image
 
     data_dir = site_dir / "data"
@@ -192,6 +194,15 @@ def export_site_data(gdf, sites: dict[str, dict], chips_dir: Path, site_dir: Pat
                        for r in s["courts"]],
         }
     write_json_atomic(data_dir / "sites.json", site_index, indent=None)
+    # downloadable copies of the dataset for the results page
+    dl = data_dir / "downloads"
+    dl.mkdir(exist_ok=True)
+    for name in ("courts.geojson", "summary_by_county.csv", "summary_by_state.csv", "transitions.csv"):
+        src = Path(dataset_dir) / name
+        if src.exists():
+            shutil.copyfile(src, dl / name)
+        else:
+            log.warning("download copy skipped, %s missing", src)
     headline = summary_state[0] if summary_state else {}
     write_json_atomic(data_dir / "summary.json", {
         "generated_at": datetime.now(timezone.utc).isoformat(), "state": state.upper(),
@@ -259,7 +270,7 @@ def main() -> int:
                  s["pickleball_courts"], s["current_padel"], s["current_removed"], s["current_unknown"], s["needs_review"])
     log.info("dataset -> %s", args.out_dir)
     if not args.no_site:
-        export_site_data(gdf, sites, args.chips_dir, args.site_dir, by_state, args.jpeg_quality, args.state)
+        export_site_data(gdf, sites, args.chips_dir, args.site_dir, by_state, args.jpeg_quality, args.state, args.out_dir)
     return 0
 
 
