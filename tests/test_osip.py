@@ -14,3 +14,12 @@ def test_years_in():
     m = load_script("02b_fetch_osip")
     assert m.years_in("OSIP_2025_Franklin_6in") == [2025]
     assert m.years_in("osip_best_avail_1ft") == []
+
+
+def test_preflight_false_when_unreachable(monkeypatch):
+    m = load_script("02b_fetch_osip")
+    import requests
+    def boom(*a, **k):
+        raise requests.ConnectionError("nope")
+    monkeypatch.setattr(m.requests, "get", boom)
+    assert m.preflight(["https://example.invalid/ImageServer"]) is False

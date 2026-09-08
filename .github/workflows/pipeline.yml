@@ -131,6 +131,7 @@ jobs:
       - name: 2b. Newer OSIP imagery (Ohio only; skipped quietly if the service is unavailable)
         if: steps.p.outputs.state == 'OH'
         continue-on-error: true
+        timeout-minutes: 30
         run: python scripts/02b_fetch_osip.py --fetch --state OH --min-year 2024 --offset 0 --limit 100000
 
       - name: Decide mode

@@ -18,6 +18,7 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
