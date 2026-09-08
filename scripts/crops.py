@@ -22,6 +22,16 @@ except ImportError:  # pragma: no cover
 CROP_W, CROP_H = 160, 320       # pixels; court long axis vertical
 CROP_MARGIN = 0.3               # extra context around the footprint (fraction of each side)
 
+# Every crop covers at least this much ground (metres, long x short axis), so
+# absolute size survives: a tennis court (36.6 x 18.3 m fence line, 23.8 x 11 m
+# playing lines) fills most of the frame and a single pickleball court
+# (13.4 x 6.1 m) stays small. Before this, crops were scaled to the OSM
+# footprint, so a tennis court mapped by its playing lines looked the same as
+# a pickleball court mapped by its own. The 2:1 ground aspect matches CROP_W:CROP_H.
+GROUND_LONG_M = 46.0
+GROUND_SHORT_M = 23.0
+CROP_VERSION = 2                # bump when crop geometry changes so cached training crops are rebuilt
+
 
 def lonlat_ring_to_pixels(ring: list[list[float]], sidecar: dict) -> list[tuple[float, float]]:
     """Footprint corners (lon, lat) -> chip pixel (col, row) via the sidecar's CRS and transform."""
@@ -45,9 +55,23 @@ def pixels_to_norm_obb(pts: list[tuple[float, float]], size: int) -> list[list[f
     return [[round(x / size, 5), round(y / size, 5)] for x, y in pts]
 
 
+def ground_window_px(sidecar: dict) -> tuple[float, float]:
+    """Minimum crop window (long, short) in chip pixels for this chip's ground resolution."""
+    gsd = sidecar.get("gsd")
+    if not gsd:
+        a, b, _, d, e, _ = sidecar["transform"]
+        gsd = (math.hypot(a, d) + math.hypot(b, e)) / 2.0
+    return GROUND_LONG_M / float(gsd), GROUND_SHORT_M / float(gsd)
+
+
 def crop_court(im: Image.Image, pts: list[tuple[float, float]], out_w: int = CROP_W, out_h: int = CROP_H,
-               margin: float = CROP_MARGIN) -> Image.Image:
+               margin: float = CROP_MARGIN, min_long: float = 0.0, min_short: float = 0.0) -> Image.Image:
     """Axis-aligned crop of the rotated rectangle ``pts`` (4 pixel corners in order).
+
+    The window is the footprint plus ``margin``, enlarged to at least
+    ``min_long`` x ``min_short`` pixels (see ``ground_window_px``). When the
+    minimum applies, the window keeps the min_long:min_short aspect and grows
+    just enough to contain the footprint, so nothing is stretched.
 
     Uses one affine resampling pass: output (u, v) maps to the input point
     centre + short_axis * ((u/out_w - 0.5) * W') + long_axis * ((v/out_h - 0.5) * L').
@@ -68,6 +92,9 @@ def crop_court(im: Image.Image, pts: list[tuple[float, float]], out_w: int = CRO
     cx = sum(p[0] for p in pts) / 4.0
     cy = sum(p[1] for p in pts) / 4.0
     Lp, Wp = long_len * (1 + margin), short_len * (1 + margin)
+    if min_long > 0 and min_short > 0:
+        scale = max(Lp / min_long, Wp / min_short, 1.0)
+        Lp, Wp = min_long * scale, min_short * scale
     a, b = sx * Wp / out_w, lx * Lp / out_h
     d, e = sy * Wp / out_w, ly * Lp / out_h
     c = cx - 0.5 * (sx * Wp + lx * Lp)
@@ -78,8 +105,9 @@ def crop_court(im: Image.Image, pts: list[tuple[float, float]], out_w: int = CRO
 def crop_from_chip(png_path: Path | str, sidecar: dict, ring_lonlat: list[list[float]],
                    out_w: int = CROP_W, out_h: int = CROP_H) -> tuple[Image.Image, list[tuple[float, float]]]:
     pts = lonlat_ring_to_pixels(ring_lonlat, sidecar)
+    min_long, min_short = ground_window_px(sidecar)
     with Image.open(png_path) as im:
-        return crop_court(im, pts, out_w, out_h), pts
+        return crop_court(im, pts, out_w, out_h, min_long=min_long, min_short=min_short), pts
 
 
 def contact_sheet(crops: list[Image.Image], cols: int = 5, label_start: int = 1,
