@@ -200,7 +200,7 @@ jobs:
                        data/change/validation_report.txt data/models/classifier_report.json data/review/spot_check_latest
           fi
           git commit -m "Pipeline run (${{ steps.mode.outputs.mode }}): ${{ steps.p.outputs.state }} offset ${{ steps.p.outputs.offset }} limit ${{ steps.p.outputs.limit }}" || echo "nothing to commit"
-          git pull --rebase --autostash origin ${{ github.ref_name }}
+          git pull --rebase --autostash -X theirs origin ${{ github.ref_name }}   # generated files: this run's version wins
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Summary
