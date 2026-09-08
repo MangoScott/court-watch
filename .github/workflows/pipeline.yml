@@ -16,7 +16,7 @@ name: Run pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/court-watch-tennis-tracking-e5zstu]   # working branch: still the default branch, where the schedule runs
     paths: [pipeline_run.yaml]
   schedule:
     - cron: "17 */4 * * *"   # every 4 hours: fetch the next chunk of sites and re-run
