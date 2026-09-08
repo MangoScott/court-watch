@@ -91,8 +91,8 @@ def test_overrides_roundtrip():
     tracks = tracks_from_dicts(recs)
     tid = tracks[0].track_id
     tracks = apply_overrides(tracks, [
-        {"site_id": "s", "track_id": tid, "year": "2023", "class": "removed", "reviewer": "scott", "note": "paved"},
-        {"site_id": "other", "track_id": tid, "year": "2023", "class": "tennis", "reviewer": "x", "note": ""},
+        {"site_id": "s", "track_id": tid, "year": "2025", "class": "removed", "reviewer": "scott", "note": "paved"},
+        {"site_id": "other", "track_id": tid, "year": "2025", "class": "tennis", "reviewer": "x", "note": ""},
     ], "s")
     r = summarize_track(tracks[0])
     assert r["current_class"] == "removed"
