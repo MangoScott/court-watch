@@ -152,8 +152,18 @@ standard court dimensions (36.6 x 18.3 m tennis, 18.3 x 9.1 m pickleball) and
 flagging what it had to guess. `crops.py` cuts each footprint out of a chip as
 an upright 160 x 320 crop. The classifier only has to answer "which of the five
 classes is this court?", which is a much easier problem than finding courts
-from scratch, so a few hundred labels are enough. Individual pickleball court
-counts inside a converted footprint are reported as unknown rather than guessed.
+from scratch, so a few hundred labels are enough.
+
+OSM reflects today's geometry, so a converted tennis court shows up as four
+small pickleball polygons. `aggregate_pickleball` folds contiguous pickleball
+courts back into tennis-sized parent footprints (so the same footprint is
+classified as tennis in 2019 and pickleball in 2023) and records the OSM
+pickleball count on the parent. Pickleball courts OSM draws inside a tennis
+court are attached to it as an overlay count, which is the hybrid signature.
+At Sawyer Point this yields exactly 3 tennis footprints with 2 overlays each
+and 5 pickleball parents holding 18 courts. Where the classifier sees
+pickleball on a footprint OSM knows nothing about, the count is reported as
+unknown rather than guessed.
 
 **Three detector backends, one schema.** Classifier, YOLO-OBB and Claude
 detections are written in the same JSON shape (see the docstring in

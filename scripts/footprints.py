@@ -26,9 +26,14 @@ from dataclasses import asdict, dataclass
 
 from shapely.geometry import Point, Polygon
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 UNIT = {"tennis": (36.6, 18.3), "pickleball": (18.3, 9.1), "padel": (20.0, 10.0)}
 PITCH = {"tennis": (38.0, 19.5), "pickleball": (19.0, 10.0), "padel": (21.0, 11.0)}
+# OSM mappers trace either the fenced/paved compound (UNIT/PITCH above) or just
+# the painted lines. Line-traced banks are much tighter, so both styles are tried.
+LINES_UNIT = {"tennis": (23.77, 10.97), "pickleball": (13.41, 6.10), "padel": (20.0, 10.0)}
+LINES_PITCH = {"tennis": (25.5, 14.6), "pickleball": (14.5, 7.6), "padel": (21.0, 11.0)}
 MAX_COURTS_PER_FEATURE = 24
 
 
@@ -45,6 +50,12 @@ class Footprint:
     subdivided: bool = False
     guessed: bool = False
     oversized: bool = False
+    role: str = "court"          # "court" (tracked and classified) or "pb_child" (folded into a parent)
+    parent: int | None = None    # index of the parent footprint in the site list, for pb_child
+    n_children: int = 0          # pickleball courts folded into this footprint (count known from OSM)
+    n_overlay: int = 0           # OSM pickleball courts drawn inside this tennis footprint (hybrid hint)
+    derived: str = ""            # "" or "pickleball_cluster"
+    osm_ref: str = ""
 
     def corners(self) -> list[tuple[float, float]]:
         return rect_corners(self.cx, self.cy, self.length, self.width, self.angle)
@@ -128,13 +139,16 @@ def footprints_for_feature(geom: BaseGeometry, sport: str) -> list[Footprint]:
     if L <= ul * 1.35 and W <= uw * 1.6:
         return [Footprint(cx, cy, L, W, angle, sport, 1, 0)]
 
-    # bank or grid of courts: pick the orientation that fits best
-    ra, ca, resid_a = _grid_option(L, W, pl, pw)              # courts' long axis along L
-    rb, cb, resid_b = _grid_option(W, L, pl, pw)              # courts' long axis along W
-    if resid_a <= resid_b:
-        rows, cols, along_L, across = ra, ca, True, W
-    else:
-        rows, cols, along_L, across = rb, cb, False, L
+    # bank or grid of courts: try both orientations and both mapping styles,
+    # keep the grid whose spacing best explains the polygon's dimensions
+    best = None
+    for style_unit, style_pitch in ((UNIT, PITCH), (LINES_UNIT, LINES_PITCH)):
+        spl, spw = style_pitch[sport]
+        for along_L in (True, False):
+            rows, cols, resid = _grid_option(L, W, spl, spw) if along_L else _grid_option(W, L, spl, spw)
+            if best is None or resid < best[0]:
+                best = (resid, rows, cols, along_L, style_unit[sport])
+    _, rows, cols, along_L, (ul, uw) = best
     n = rows * cols
     oversized = n > MAX_COURTS_PER_FEATURE
     if oversized:
@@ -181,3 +195,118 @@ def dedupe_footprints(fps: list[Footprint], min_dist: float = 6.0) -> list[Footp
             continue
         kept.append(f)
     return kept
+
+
+def _connected_groups(polys: list[Polygon], gap: float) -> list[list[int]]:
+    """Indices grouped by touching (within ``gap`` metres), union-find style."""
+    n = len(polys)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    buffered = [p.buffer(gap / 2.0) for p in polys]
+    for i in range(n):
+        for j in range(i + 1, n):
+            if buffered[i].intersects(buffered[j]):
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+    return list(groups.values())
+
+
+def split_cluster(rect: Polygon, n_children: int) -> list[Footprint]:
+    """Tennis-sized parents for a block of pickleball courts.
+
+    Pickleball courts painted on former tennis courts are usually 4 per court
+    (sometimes 2, 3 or 6) and the block of painted lines is narrower than the
+    slab. For a single row (block no longer than ~45 m across) the number of
+    parents comes from the block width at a tight 18.3 m pitch (plus run-out),
+    sanity-checked against the child count; multi-row blocks fall back to the
+    generic grid.
+    """
+    cx, cy, L, W, angle = rectangle_params(rect)
+    if W > 45:
+        return footprints_for_feature(rect, "tennis")
+    k = max(1, round((L + 4.0) / 18.3))
+    if n_children and n_children / k > 6:
+        k = math.ceil(n_children / 6)
+    if n_children:
+        k = min(k, n_children)
+    a = math.radians(angle)
+    ux, uy = math.cos(a), math.sin(a)
+    cell = L / k
+    out = []
+    for i in range(k):
+        off = (i + 0.5) * cell - L / 2.0
+        out.append(Footprint(cx + ux * off, cy + uy * off, max(W, LINES_UNIT["tennis"][0]), cell,
+                             (angle + 90.0) % 180.0, "tennis", k, i, subdivided=True))
+    return out
+
+
+def aggregate_pickleball(fps: list[Footprint], gap: float = 6.0, min_cluster: int = 3) -> list[Footprint]:
+    """Fold OSM pickleball courts into tennis-sized footprints where they clearly
+    sit on former tennis courts, so the same footprint can be classified in
+    every year (tennis in 2019, pickleball in 2023) and counts come from OSM.
+
+    * A pickleball court whose centre lies inside a tennis/padel footprint
+      becomes a ``pb_child`` of it and bumps the parent's ``n_overlay`` (pickleball
+      lines drawn on a tennis court: the hybrid signature).
+    * Contiguous groups of >= ``min_cluster`` pickleball courts whose union is
+      at least tennis-court sized are re-cut into standard tennis footprints
+      (``derived = "pickleball_cluster"``, sport "pickleball"); each child is
+      attached to the nearest parent and the parent's ``n_children`` is the
+      known pickleball count. Parents that end up with no children are dropped.
+    * Everything else (a lone pickleball court, a pair) stays a court of its own
+      with ``n_children = 1``.
+
+    Returns the full list (parents, courts and children) with ``parent`` set to
+    list indices, ready for ``derive_courts`` to give ids.
+    """
+    tennis = [f for f in fps if f.sport != "pickleball"]
+    pb = [f for f in fps if f.sport == "pickleball"]
+    out: list[Footprint] = list(tennis)
+    tpolys = [f.polygon() for f in tennis]
+    free: list[Footprint] = []
+    for f in pb:
+        c = Point(f.cx, f.cy)
+        hit = next((i for i, p in enumerate(tpolys) if p.contains(c)), None)
+        if hit is not None:
+            f.role, f.parent = "pb_child", hit
+            tennis[hit].n_overlay += 1
+            out.append(f)
+        else:
+            free.append(f)
+    if not free:
+        return out
+    for group in _connected_groups([f.polygon() for f in free], gap):
+        members = [free[i] for i in group]
+        if len(members) >= min_cluster:
+            union = unary_union([m.polygon() for m in members])
+            _, _, L, W, _ = rectangle_params(union)
+            if L >= 22 and W >= 10:
+                parents = split_cluster(union.minimum_rotated_rectangle, len(members))
+                for p in parents:
+                    p.sport, p.subdivided, p.derived = "pickleball", True, "pickleball_cluster"
+                    p.osm_ref = ";".join(sorted({m.osm_ref for m in members if m.osm_ref}))[:200]
+                assigned: dict[int, list[Footprint]] = {}
+                for m in members:
+                    k = min(range(len(parents)), key=lambda i: math.hypot(parents[i].cx - m.cx, parents[i].cy - m.cy))
+                    assigned.setdefault(k, []).append(m)
+                for k, kids in assigned.items():
+                    parent = parents[k]
+                    parent.n_children = len(kids)
+                    out.append(parent)
+                    pidx = len(out) - 1
+                    for m in kids:
+                        m.role, m.parent = "pb_child", pidx
+                        out.append(m)
+                continue
+        for m in members:
+            m.n_children = 1
+            out.append(m)
+    return out

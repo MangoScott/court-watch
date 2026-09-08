@@ -41,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     OSM_DIR, SITE_CLUSTER_M, CHIP_SIZE, CHIP_GSD, log, make_site_id, setup_logging, write_csv,
 )
-from footprints import dedupe_footprints, footprints_for_feature  # noqa: E402
+from footprints import aggregate_pickleball, dedupe_footprints, footprints_for_feature  # noqa: E402
 
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
@@ -226,12 +226,22 @@ def cluster_sites(features, state: str, cluster_m: float = SITE_CLUSTER_M):
 def derive_courts(features, sites):
     """One rotated rectangle per court, from OSM geometry (see footprints.py).
 
-    Returns a GeoDataFrame (EPSG:4326) with court_id = <site_id>:f<NN>, the
-    OSM feature it came from, standard-size flags, and ``ring`` (JSON list of
-    four [lon, lat] corners) for downstream scripts that avoid GIS libraries.
+    Returns a GeoDataFrame (EPSG:4326) with one row per footprint: the OSM
+    feature it came from, standard-size flags, ``ring`` (JSON list of four
+    [lon, lat] corners) for scripts that avoid GIS libraries, and
+
+    * ``role``: "court" rows are tracked and classified; "pb_child" rows are
+      OSM pickleball courts folded into a tennis-sized parent (see
+      footprints.aggregate_pickleball) and carry ``parent_id``.
+    * ``n_children``: pickleball courts inside a parent (known count from OSM).
+    * ``n_overlay``: pickleball courts OSM draws inside a tennis court (hybrid hint).
+
+    ``court_id`` is ``<site_id>:f<6 hex>`` hashed from the footprint centre to
+    1 m, so ids survive re-running this step after small OSM edits.
     """
+    import hashlib
+
     import geopandas as gpd
-    from shapely.geometry import Polygon
 
     rows, geoms = [], []
     if len(features) == 0:
@@ -243,20 +253,23 @@ def derive_courts(features, sites):
         for idx, feat in grp.iterrows():
             sport = feat["sport"] if feat["sport"] in ("tennis", "pickleball", "padel") else "tennis"
             for fp in footprints_for_feature(feat.geometry, sport):
-                fp_d = fp
-                fp_d.osm_ref = feat["osm_ref"]  # type: ignore[attr-defined]
-                fps.append(fp_d)
+                fp.osm_ref = feat["osm_ref"]
+                fps.append(fp)
         fps = dedupe_footprints(fps)
+        fps = aggregate_pickleball(fps)
         polys = gpd.GeoSeries([fp.polygon() for fp in fps], crs=utm).to_crs("EPSG:4326")
-        for k, (fp, poly) in enumerate(zip(fps, polys)):
+        ids = [f"{site_id}:f{hashlib.sha1(f'{round(fp.cx)}_{round(fp.cy)}'.encode()).hexdigest()[:6]}" for fp in fps]
+        for fp, poly, cid in zip(fps, polys, ids):
             ring = [[round(x, 7), round(y, 7)] for x, y in list(poly.exterior.coords)[:4]]
             c = poly.centroid
             rows.append({
-                "court_id": f"{site_id}:f{k:02d}", "site_id": site_id, "osm_ref": getattr(fp, "osm_ref", ""),
-                "sport": fp.sport, "lat": round(c.y, 7), "lon": round(c.x, 7),
+                "court_id": cid, "site_id": site_id, "osm_ref": fp.osm_ref,
+                "sport": fp.sport, "role": fp.role, "parent_id": ids[fp.parent] if fp.parent is not None else "",
+                "lat": round(c.y, 7), "lon": round(c.x, 7),
                 "length_m": round(fp.length, 1), "width_m": round(fp.width, 1), "angle_deg": round(fp.angle, 1),
-                "n_in_feature": fp.n_in_feature, "subdivided": fp.subdivided, "guessed": fp.guessed,
-                "oversized": fp.oversized, "ring": json.dumps(ring),
+                "n_in_feature": fp.n_in_feature, "n_children": fp.n_children, "n_overlay": fp.n_overlay,
+                "subdivided": fp.subdivided, "guessed": fp.guessed, "oversized": fp.oversized,
+                "derived": fp.derived, "ring": json.dumps(ring),
             })
             geoms.append(poly)
     return gpd.GeoDataFrame(rows, geometry=geoms, crs="EPSG:4326")
@@ -308,8 +321,12 @@ def main() -> int:
 
     courts = derive_courts(features, sites)
     if len(courts):
-        log.info("%d court footprints (%d subdivided from banks, %d guessed from nodes, %d oversized)",
-                 len(courts), int(courts["subdivided"].sum()), int(courts["guessed"].sum()), int(courts["oversized"].sum()))
+        tracked = courts[courts["role"] == "court"]
+        log.info("%d footprints: %d tracked courts (%d subdivided from banks, %d guessed from nodes, %d oversized, "
+                 "%d rebuilt from pickleball clusters, %d tennis with pickleball overlays) + %d pickleball children",
+                 len(courts), len(tracked), int(tracked["subdivided"].sum()), int(tracked["guessed"].sum()),
+                 int(tracked["oversized"].sum()), int((tracked["derived"] == "pickleball_cluster").sum()),
+                 int((tracked["n_overlay"] > 0).sum()), int((courts["role"] == "pb_child").sum()))
 
     gpkg = args.out_dir / f"{tag}.gpkg"
     if gpkg.exists():

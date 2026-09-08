@@ -32,6 +32,7 @@ def write_courts_csv(path: Path, site_id: str, chips: Path):
     for k, (cx, cy) in enumerate(tennis_centres()):
         ring = cd.obb_to_lonlat(court_obb(cx, cy, TENNIS_W, TENNIS_H), sidecar)[:4]
         rows.append({"court_id": f"{site_id}:f{k:02d}", "site_id": site_id, "osm_ref": "way/1", "sport": "tennis",
+                     "role": "court", "parent_id": "", "n_children": 0, "n_overlay": 0, "derived": "",
                      "lat": ring[0][1], "lon": ring[0][0], "length_m": 26, "width_m": 12, "angle_deg": 90,
                      "n_in_feature": 8, "subdivided": "True", "guessed": "False", "oversized": "False",
                      "ring": json.dumps(ring)})

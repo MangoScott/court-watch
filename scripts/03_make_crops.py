@@ -53,6 +53,8 @@ def load_courts(courts_csv: Path) -> dict[str, list[dict]]:
     """site_id -> list of court rows (ring parsed)."""
     by_site: dict[str, list[dict]] = {}
     for r in read_csv(courts_csv):
+        if r.get("role", "court") != "court":
+            continue  # pickleball children are folded into their parent footprint
         r["ring"] = json.loads(r["ring"])
         by_site.setdefault(r["site_id"], []).append(r)
     return by_site
@@ -91,7 +93,10 @@ def sample_candidates(cands: list[dict], n: int, seed: int, labeled: set[str], s
         latest_year[c["chip"]["site_id"]] = max(latest_year.get(c["chip"]["site_id"], 0), c["chip"]["year"])
     latest = [c for c in cands if c["chip"]["year"] == latest_year[c["chip"]["site_id"]]]
     older = [c for c in cands if c["chip"]["year"] != latest_year[c["chip"]["site_id"]]]
-    rare = [c for c in latest if c["court"]["sport"] in ("pickleball", "padel")]
+    def is_rare(c):
+        court = c["court"]
+        return court["sport"] in ("pickleball", "padel") or int(court.get("n_overlay") or 0) > 0
+    rare = [c for c in latest if is_rare(c)]
     common_latest = [c for c in latest if c not in rare]
     rng.shuffle(rare); rng.shuffle(common_latest); rng.shuffle(older)
     picked = rare[: max(1, n // 5)]
@@ -117,7 +122,8 @@ def make_sheets(picked: list[dict], out_dir: Path, chips_dir: Path) -> int:
             index.append({"n": i, "crop_id": c["crop_id"], "site_id": chip["site_id"], "year": chip["year"],
                           "sport_osm": c["court"]["sport"], "imagery_date": chip.get("imagery_date"),
                           "lat": c["court"]["lat"], "lon": c["court"]["lon"],
-                          "subdivided": c["court"]["subdivided"], "guessed": c["court"]["guessed"]})
+                          "subdivided": c["court"]["subdivided"], "guessed": c["court"]["guessed"],
+                          "n_children": c["court"].get("n_children", ""), "n_overlay": c["court"].get("n_overlay", "")})
         sheet_no = start + n_sheets
         contact_sheet(images).save(out_dir / f"sheet_{sheet_no:03d}.jpg", "JPEG", quality=88)
         (out_dir / f"sheet_{sheet_no:03d}.json").write_text(json.dumps(

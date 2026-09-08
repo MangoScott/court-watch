@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-SITE_LAT, SITE_LON = 39.0975, -84.4966
+SITE_LAT, SITE_LON = 39.10279, -84.49653
 SIZE = 512
 
 

@@ -65,5 +65,50 @@ def test_derive_courts_from_osm_fixture():
     row = courts.iloc[0]
     ring = json.loads(row["ring"])
     assert len(ring) == 4 and all(len(p) == 2 for p in ring)
-    assert row["court_id"].startswith(row["site_id"] + ":f")
+    assert row["court_id"].startswith(row["site_id"] + ":f") and len(row["court_id"].split(":f")[1]) == 6
     assert set(courts["sport"]) <= {"tennis", "pickleball", "padel"}
+    assert set(courts["role"]) <= {"court", "pb_child"}
+    assert {"parent_id", "n_children", "n_overlay", "derived"} <= set(courts.columns)
+
+
+def sawyer_like():
+    """3 tennis courts (lines, 24 x 12) each with 2 pickleball courts inside, plus
+    5 former courts holding 4,4,4,4,2 pickleball courts (lines, 13.4 x 6), all
+    in one row 17 m apart, as OSM has Sawyer Point."""
+    import math
+    from footprints import Footprint
+    fps = []
+    for i in range(3):
+        cx = i * 17.0
+        fps.append(Footprint(cx, 0.0, 24.1, 12.0, 90.0, "tennis", 1, 0, osm_ref=f"way/t{i}"))
+        for j in (-1, 1):
+            fps.append(Footprint(cx + j * 3.2, 0.0, 13.4, 6.0, 90.0, "pickleball", 1, 0, osm_ref=f"way/o{i}{j}"))
+    counts = [4, 4, 4, 4, 2]
+    for i, n in enumerate(counts):
+        cx = 60.0 + i * 17.0
+        for k in range(n):
+            col, row = k % 2, k // 2
+            fps.append(Footprint(cx + (col - 0.5) * 7.0, (row - 0.5) * 15.0 if n > 2 else 0.0, 13.4, 6.0, 90.0,
+                                 "pickleball", 1, 0, osm_ref=f"way/p{i}{k}"))
+    return fps
+
+
+def test_aggregate_pickleball_sawyer_point():
+    from footprints import aggregate_pickleball
+    out = aggregate_pickleball(sawyer_like())
+    courts = [f for f in out if f.role == "court"]
+    children = [f for f in out if f.role == "pb_child"]
+    assert len(courts) == 8 and len(children) == 24
+    tennis = [f for f in courts if f.sport == "tennis"]
+    assert len(tennis) == 3 and all(f.n_overlay == 2 for f in tennis)
+    parents = [f for f in courts if f.sport == "pickleball"]
+    assert len(parents) == 5 and sorted(f.n_children for f in parents) == [2, 4, 4, 4, 4]
+    assert all(f.derived == "pickleball_cluster" for f in parents)
+    assert all(out[c.parent].role == "court" for c in children)
+
+
+def test_lone_pickleball_courts_stay_courts():
+    from footprints import Footprint, aggregate_pickleball
+    fps = [Footprint(0, 0, 13.4, 6.0, 90.0, "pickleball", 1, 0), Footprint(8, 0, 13.4, 6.0, 90.0, "pickleball", 1, 0)]
+    out = aggregate_pickleball(fps)
+    assert len(out) == 2 and all(f.role == "court" and f.n_children == 1 for f in out)

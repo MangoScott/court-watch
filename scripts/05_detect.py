@@ -75,6 +75,8 @@ def run_classifier(chips: list[dict], det_dir: Path, weights: Path, courts_csv: 
     tf = transforms.Compose([transforms.ToTensor(), transforms.Normalize(ckpt["mean"], ckpt["std"])])
     courts_by_site: dict[str, list[dict]] = {}
     for r in read_csv(courts_csv):
+        if r.get("role", "court") != "court":
+            continue
         r["ring"] = _json.loads(r["ring"])
         courts_by_site.setdefault(r["site_id"], []).append(r)
     source = f"classifier:{weights.name}"
@@ -97,13 +99,28 @@ def run_classifier(chips: list[dict], det_dir: Path, weights: Path, courts_csv: 
                 k = max(range(len(pr)), key=pr.__getitem__)
                 cls = classes[k]
                 inside = all(0 <= x <= size and 0 <= y <= size for x, y in pts)
+                n_children = int(court.get("n_children") or 0)
+                n_overlay = int(court.get("n_overlay") or 0)
+                if cls == "pickleball":
+                    n_courts = n_children if n_children > 0 else None   # OSM count when mapped, else unknown
+                else:
+                    n_courts = 1
+                notes = []
+                if not inside:
+                    notes.append("footprint partly outside chip")
+                if court.get("guessed") == "True":
+                    notes.append("osm geometry guessed from node")
+                if court.get("subdivided") == "True":
+                    notes.append("subdivided from bank")
+                if court.get("derived") == "pickleball_cluster":
+                    notes.append(f"footprint rebuilt from {n_children} OSM pickleball courts")
+                if n_overlay:
+                    notes.append(f"OSM maps {n_overlay} pickleball courts inside this tennis court")
                 rec["courts"].append({
                     "class": cls, "confidence": round(pr[k], 3),
                     "obb": pixels_to_norm_obb(pts, size), "court_id": court["court_id"],
-                    "n_courts": None if cls == "pickleball" else 1,
-                    "notes": ("" if inside else "footprint partly outside chip; ") +
-                             ("osm geometry guessed from node; " if court.get("guessed") == "True" else "") +
-                             ("subdivided from bank; " if court.get("subdivided") == "True" else ""),
+                    "n_courts": n_courts, "osm_sport": court.get("sport"), "osm_n_overlay": n_overlay,
+                    "notes": "; ".join(notes),
                     "probs": {c: round(p, 3) for c, p in zip(classes, pr)},
                 })
         write_json_atomic(detection_path(det_dir, chip["site_id"], chip["year"]), rec)
