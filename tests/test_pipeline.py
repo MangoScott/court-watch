@@ -44,14 +44,14 @@ def test_change_detection_export_validate_spotcheck(sawyer_site, tmp_path):
     assert row["tennis_to_hybrid"] == "3" and row["tennis_or_hybrid_to_pickleball"] == "5"
     assert (site_dir / "data" / "courts_points.geojson").exists()
     sites_json = json.loads((site_dir / "data" / "sites.json").read_text())
-    assert set(sites_json[sawyer_site["site_id"]]["images"]) == {"2019", "2021", "2023"}
-    assert (site_dir / "data" / "chips" / sawyer_site["site_id"] / "2023.jpg").exists()
+    assert set(sites_json[sawyer_site["site_id"]]["images"]) == {"2019", "2023", "2025"}
+    assert (site_dir / "data" / "chips" / sawyer_site["site_id"] / "2025.jpg").exists()
 
     # overrides change the export but not the raw tracks
     ov = tmp_path / "overrides.csv"
     tid = site["courts"][7]["track_id"]
     ov.write_text("site_id,track_id,year,class,reviewer,note\n"
-                  f"{sawyer_site['site_id']},{tid},2023,tennis,scott,lines repainted\n")
+                  f"{sawyer_site['site_id']},{tid},2025,tennis,scott,lines repainted\n")
     run(S / "07_export.py", "--tracks", change / "court_tracks_raw.json", "--chips-dir", sawyer_site["chips"],
         "--out-dir", out, "--site-dir", site_dir, "--no-county", "--overrides", ov)
     with open(out / "summary_by_state.csv") as f:
@@ -77,7 +77,7 @@ def test_yolo_export(sawyer_site, tmp_path):
         (labels / "raw" / f"{rec['site_id']}_{rec['year']}.json").write_text(json.dumps(rec))
     stats = m.export_yolo(labels, tmp_path / "yolo")
     assert stats["train"] + stats["val"] == 3
-    assert stats["boxes"]["pickleball"] == 18 and stats["boxes"]["tennis"] == 13
+    assert stats["boxes"]["pickleball"] == 18 and stats["boxes"]["tennis"] == 16
     yaml_text = (tmp_path / "yolo" / "dataset.yaml").read_text()
     assert "0: tennis" in yaml_text and "4: removed" in yaml_text
     label_files = list((tmp_path / "yolo" / "labels").rglob("*.txt"))
@@ -92,5 +92,32 @@ def test_choose_chips_prefers_latest(sawyer_site):
     chips = list_chips(sawyer_site["chips"])
     assert len(chips) == 3
     picked = m.choose_chips(chips, 1, 0, None, False, None)
-    assert picked[0]["year"] == 2023
+    assert picked[0]["year"] == 2025
     assert len(m.choose_chips(chips, None, 0, None, True, sawyer_site["site_id"])) == 3
+
+
+def test_validate_skips_expectations_needing_newer_imagery(sawyer_site, tmp_path):
+    change = tmp_path / "change"
+    run(S / "06_change_detection.py", "--det-dir", sawyer_site["dets"], "--chips-dir", sawyer_site["chips"], "--out-dir", change)
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text("name: t\nlat: 39.10279\nlon: -84.49653\nradius_m: 300\nexpect:\n  2019: {tennis: 8}\n"
+                   "  latest:\n    requires_imagery_from: 2030\n    tennis: 0\n")
+    r = run(S / "validate.py", cfg, "--tracks", change / "court_tracks_raw.json")
+    assert "SKIP latest" in r.stdout and "ALL PASS" in r.stdout
+
+
+def test_rare_only_and_recent_sampling(sawyer_site):
+    m = load_script("03_make_crops")
+    from common import list_chips
+    chips = list_chips(sawyer_site["chips"])
+    courts = {sawyer_site["site_id"]: [
+        {"court_id": "a", "sport": "tennis", "n_overlay": "0", "ring": [], "subdivided": "", "guessed": ""},
+        {"court_id": "b", "sport": "pickleball", "n_overlay": "0", "ring": [], "subdivided": "", "guessed": ""},
+        {"court_id": "c", "sport": "tennis", "n_overlay": "2", "ring": [], "subdivided": "", "guessed": ""},
+    ]}
+    cands = m.all_candidates(chips, courts)
+    assert len(cands) == 9
+    rare = m.sample_candidates(cands, 100, 0, set(), None, rare_only=True)
+    assert {c["court"]["court_id"] for c in rare} == {"b", "c"}
+    recent = m.sample_candidates(cands, 100, 0, set(), None, recent=1)
+    assert {c["chip"]["year"] for c in recent} == {2025}

@@ -2,7 +2,7 @@
    courts_points.geojson, sites.json, summary.json, chips/<site>/<year>.jpg. No backend. */
 (async function () {
   const CLASSES = ["tennis", "hybrid", "pickleball", "padel", "removed", "unknown"];
-  const COLORS = { tennis: "#2ecc71", hybrid: "#f5a623", pickleball: "#e94b3c", padel: "#9b59b6", removed: "#7f8c8d", unknown: "#4b5563" };
+  const COLORS = { tennis: "#1f9e89", hybrid: "#bf8a18", pickleball: "#d2497f", padel: "#4f80d9", removed: "#a8623a", unknown: "#4b5563" };
 
   const [summary, courts, sites] = await Promise.all([
     fetch("data/summary.json").then(r => r.json()).catch(() => ({})),
@@ -91,7 +91,7 @@
       paint: {
         "circle-color": ["match", ["get", "current_class"], ...CLASSES.flatMap(c => [c, COLORS[c]]), "#4b5563"],
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 4, 14, 8, 18, 12],
-        "circle-stroke-color": ["case", ["get", "needs_review"], "#f5a623", "#fff"],
+        "circle-stroke-color": ["case", ["get", "needs_review"], "#ffd166", "#fff"],
         "circle-stroke-width": ["case", ["get", "needs_review"], 2, 1],
       },
     });

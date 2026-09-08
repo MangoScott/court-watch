@@ -4,62 +4,82 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Court Watch: what happened to Ohio's tennis courts</title>
-<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<meta name="description" content="Every mapped tennis court in Ohio, what happened to it, and when, from public aerial imagery.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23171b21%27/%3E%3Crect x=%279%27 y=%275%27 width=%2714%27 height=%2722%27 rx=%271%27 fill=%27none%27 stroke=%27%23bf8a18%27 stroke-width=%272%27/%3E%3Cpath d=%27M9 16h14M13 5v22M19 5v22%27 stroke=%27%23bf8a18%27 stroke-width=%271.5%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="results.css">
 </head>
-<body>
-<div id="app">
-  <aside id="panel">
-    <header>
-      <h1>Court Watch</h1>
-      <p class="sub">Every mapped tennis court in <span id="state">Ohio</span>, what happened to it, and when. From public aerial imagery (NAIP), read by a vision model and spot-checked by hand.</p>
-    </header>
-    <section id="headline">
-      <div class="stat big"><div class="n" id="n-hybrid">–</div><div class="l">tennis courts with pickleball lines painted on <span class="tag hybrid">hybrid</span></div></div>
-      <div class="stats">
-        <div class="stat"><div class="n" id="n-tennis">–</div><div class="l">still tennis</div></div>
-        <div class="stat"><div class="n" id="n-pickleball">–</div><div class="l">converted footprints (<span id="n-pb-courts">–</span> pickleball courts)</div></div>
-        <div class="stat"><div class="n" id="n-padel">–</div><div class="l">padel</div></div>
-        <div class="stat"><div class="n" id="n-removed">–</div><div class="l">removed</div></div>
+<body class="results">
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Court Watch</div>
+    <nav class="nav"><a href="index.html" class="on">Results</a><a href="map.html">Map</a><a href="review.html">Review</a><a href="#data">Data</a><a href="#method">Method</a><a href="https://github.com/MangoScott/court-watch">GitHub</a></nav>
+  </header>
+
+  <section class="hero" style="margin-top:0">
+    <div>
+      <div class="num" id="hero-num">–</div>
+      <div class="what">tennis courts in <span class="state">Ohio</span> now have pickleball lines painted on them.</div>
+      <p class="lede">Court Watch starts from every tennis court mapped in <span class="state">Ohio</span> and follows each one through every year of public aerial imagery: still tennis, painted over for pickleball (a <em>hybrid</em>), fully converted, or gone. <span id="hero-fine"></span></p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="when">
+    <h2>When courts changed</h2>
+    <p class="sub">Each column is an imagery year; each segment counts court footprints whose class changed between the previous imagery year and that one. Hover for numbers, or switch to the table.</p>
+    <div class="card chart">
+      <div class="chart-head"><div class="legend" id="chart-legend"></div><button class="linkish" id="chart-toggle">Show as table</button></div>
+      <div id="chart"></div>
+      <div id="chart-table" hidden></div>
+    </div>
+  </section>
+
+  <section id="gallery">
+    <h2>Before and after</h2>
+    <p class="sub">The same court footprint in the first and latest imagery year, zoomed in, with the footprint outlined. Colours follow the class the model assigned in that year. Click a card to open it on the map.</p>
+    <div class="chips" id="gallery-filters"></div>
+    <div class="gallery" id="cards"></div>
+    <button class="more" id="more" hidden>Show more</button>
+  </section>
+
+  <section id="counties">
+    <h2>By county</h2>
+    <p class="sub">Court footprints by their current class. Counties with no tracked courts do not appear.</p>
+    <div class="card" style="overflow-x:auto"><table class="tbl" id="county-table"></table></div>
+  </section>
+
+  <section id="method">
+    <h2>How this works, and what to trust</h2>
+    <div class="cols">
+      <div>
+        <h3>Method</h3>
+        <ul>
+          <li><b>Where the courts are.</b> Every <code>sport=tennis</code>, <code>pickleball</code> or <code>padel</code> pitch in OpenStreetMap. Banks of courts are split into individual footprints by standard court dimensions; pickleball courts painted on a former tennis court are folded back into that court's footprint.</li>
+          <li><b>What they looked like.</b> USDA NAIP aerial imagery (0.6 to 1 m per pixel), flown over Ohio every two to three years, via Microsoft's Planetary Computer.</li>
+          <li><b>What class each court is.</b> Each footprint is cut out of each year's image and classified by a small neural network trained on a few hundred hand-labelled examples. Where it cannot see the court (trees, shadow, clouds) it says so instead of guessing.</li>
+          <li><b>What changed.</b> Classes are compared year to year per footprint. Reversals (pickleball back to tennis) and low-confidence steps are flagged for human review rather than counted silently.</li>
+        </ul>
       </div>
-      <p class="fine" id="fine"></p>
-    </section>
-    <section id="filters">
-      <h2>Show</h2>
-      <div id="class-filters"></div>
-      <label class="chk"><input type="checkbox" id="only-review"> only courts flagged for review</label>
-      <label class="chk"><input type="checkbox" id="only-changed"> only courts that changed</label>
-    </section>
-    <section id="detail" hidden>
-      <button id="close-detail" aria-label="close">×</button>
-      <h2 id="d-title">Court</h2>
-      <div id="d-class"></div>
-      <div id="d-history"></div>
-      <div class="slider-wrap">
-        <div class="year-pick">
-          <label>before <select id="before-year"></select></label>
-          <label>after <select id="after-year"></select></label>
-        </div>
-        <div id="slider">
-          <img id="img-before" alt="before">
-          <img id="img-after" alt="after">
-          <canvas id="overlay"></canvas>
-          <input type="range" id="range" min="0" max="100" value="50" aria-label="compare">
-          <div id="handle"></div>
-        </div>
-        <div class="dates"><span id="date-before"></span><span id="date-after"></span></div>
+      <div>
+        <h3>Caveats</h3>
+        <ul>
+          <li>Courts not in OpenStreetMap are invisible here. That undercount is real and not estimated.</li>
+          <li>Pickleball lines are a few centimetres wide; at 0.6 m per pixel they are visible as faint contrast, not as lines. Some hybrids will be missed and some worn tennis courts will be called hybrid. Flagged courts are exactly the ones a person should look at.</li>
+          <li>Where a footprint was converted to pickleball but OpenStreetMap has not mapped the new courts, the number of pickleball courts on it is reported as unknown, never guessed.</li>
+          <li>Numbers on this page are model output plus reviewer corrections; every court's history and confidence is in the download.</li>
+        </ul>
+        <h3 id="data" style="margin-top:14px">Data</h3>
+        <p class="dl" id="downloads"></p>
       </div>
-      <div id="d-transitions"></div>
-      <p class="fine" id="d-meta"></p>
-    </section>
-    <footer>
-      <p>Classes: <span class="tag tennis">tennis</span> clean tennis lines · <span class="tag hybrid">hybrid</span> tennis with any pickleball lines · <span class="tag pickleball">pickleball</span> dedicated pickleball · <span class="tag padel">padel</span> · <span class="tag removed">removed</span> former court.</p>
-      <p>Imagery: USDA NAIP via Microsoft Planetary Computer. Locations: OpenStreetMap. Numbers are model output plus human corrections; anything flagged is still under review. <a href="https://github.com/MangoScott/court-watch">Code and data</a>.</p>
-    </footer>
-  </aside>
-  <div id="map"></div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--line);margin-top:30px;padding-top:12px;color:var(--muted);font-size:12px">
+    Imagery: USDA NAIP via Microsoft Planetary Computer. Locations: © OpenStreetMap contributors. Code and data: <a href="https://github.com/MangoScott/court-watch" style="color:#7fb4ff">github.com/MangoScott/court-watch</a>. <span id="generated"></span>
+  </footer>
 </div>
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="app.js"></script>
+<div class="tip" id="tip"></div>
+<script src="results.js"></script>
 </body>
 </html>

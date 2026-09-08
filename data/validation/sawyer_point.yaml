@@ -6,6 +6,11 @@
 #
 # OSM has this exactly (site oh_3910279_-8449653: 3 tennis + 24 pickleball
 # features), which footprints.py folds into 8 tracked court footprints.
+#
+# Imagery note: the 2023 NAIP flight (newest for Ohio as of Sept 2026) still
+# shows 8 plain tennis courts, so the conversion happened after it. The
+# "converted" block below is skipped until 2025 imagery is published; until
+# then Sawyer Point is a no-false-positives test.
 name: Sawyer Point Park tennis courts
 lat: 39.10279
 lon: -84.49653
@@ -13,10 +18,16 @@ radius_m: 300
 tolerance: 0
 expect:
   2019:
-    tennis_footprints: 8   # tennis + hybrid; 8 courts existed
+    tennis_footprints: 8
     tennis: 8
     pickleball: 0
+  2023:
+    tennis_footprints: 8   # still plain tennis in the 2023 flight
+    tennis: 8
+    hybrid: 0
+    pickleball: 0
   latest:
+    requires_imagery_from: 2025
     hybrid: 3
     tennis: 0
     pickleball: 5          # footprints

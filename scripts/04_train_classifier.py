@@ -17,13 +17,16 @@ Usage::
 
 Val split is by site (hash of site_id), so a court never appears in both
 splits. Classes with no examples are still in the output layer but will
-simply never be predicted with confidence; the report says which.
+simply never be predicted with confidence; the report says which. A sixth
+class, ``unusable`` (trained from crops labeled "unknown": trees, shadow,
+blur), lets the model abstain instead of guessing.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import math
 import random
 import sys
 from collections import Counter
@@ -65,10 +68,10 @@ def main() -> int:
     ap.add_argument("--crops-dir", type=Path, default=CROPS_DIR / "train")
     ap.add_argument("--out", type=Path, default=MODELS_DIR / "classifier.pt")
     ap.add_argument("--arch", default="resnet18", choices=["resnet18", "resnet34"])
-    ap.add_argument("--epochs", type=int, default=15)
+    ap.add_argument("--epochs", type=int, default=25)
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--lr", type=float, default=3e-4)
-    ap.add_argument("--val-frac", type=float, default=0.2)
+    ap.add_argument("--val-frac", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--no-pretrained", action="store_true", help="random init instead of ImageNet weights (offline tests)")
@@ -88,7 +91,8 @@ def main() -> int:
 
     torch.manual_seed(args.seed)
     random.seed(args.seed)
-    files = [(p, p.parent.name) for p in sorted(args.crops_dir.glob("*/*.jpg")) if p.parent.name in CLASSES]
+    classes = CLASSES + ["unusable"]   # output layer; "unusable" = court not visible this year
+    files = [(p, p.parent.name) for p in sorted(args.crops_dir.glob("*/*.jpg")) if p.parent.name in classes]
     if len(files) < 20:
         log.error("only %d labeled crops in %s; label more sheets first", len(files), args.crops_dir)
         return 2
@@ -112,20 +116,26 @@ def main() -> int:
         def __getitem__(self, i):
             p, c = self.items[i]
             with Image.open(p) as im:
-                return self.tf(im.convert("RGB")), CLASSES.index(c)
+                return self.tf(im.convert("RGB")), classes.index(c)
 
-    # class-balanced sampling weights so rare classes are not ignored
+    # Rare classes are what this project is about, so balance them: sample with
+    # weight 1/sqrt(freq) and weight the loss by 1/sqrt(freq) as well (together
+    # roughly inverse-frequency), capped so a class with 3 examples cannot dominate.
     counts = Counter(c for _, c in train)
-    weights = [1.0 / counts[c] for _, c in train]
-    sampler = torch.utils.data.WeightedRandomSampler(weights, num_samples=len(train), replacement=True)
+    def w(c):
+        return min(1.0 / math.sqrt(counts.get(c, 0) or 1), 1.0 / math.sqrt(3))
+    class_w = torch.tensor([w(c) for c in classes])
+    class_w = class_w / class_w[[classes.index(c) for c in counts]].mean()
+    sample_w = [w(c) for _, c in train]
+    sampler = torch.utils.data.WeightedRandomSampler(sample_w, num_samples=len(train), replacement=True)
     dl_train = DataLoader(Crops(train, train_tf), batch_size=args.batch, sampler=sampler, num_workers=args.workers)
     dl_val = DataLoader(Crops(val, val_tf), batch_size=args.batch, num_workers=args.workers) if val else None
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = build_model(args.arch, len(CLASSES), pretrained=not args.no_pretrained).to(device)
+    model = build_model(args.arch, len(classes), pretrained=not args.no_pretrained).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
-    loss_fn = nn.CrossEntropyLoss(label_smoothing=0.05)
+    loss_fn = nn.CrossEntropyLoss(weight=class_w.to(device), label_smoothing=0.05)
     best_acc, best_state = -1.0, None
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -138,14 +148,14 @@ def main() -> int:
             opt.step()
             tot += loss.item() * len(y); n += len(y)
         sched.step()
-        acc, report = evaluate(model, dl_val, device) if dl_val else (float("nan"), {})
+        acc, report = evaluate(model, dl_val, device, classes) if dl_val else (float("nan"), {})
         log.info("epoch %d/%d loss %.3f val_acc %.3f", epoch, args.epochs, tot / max(n, 1), acc)
         if not dl_val or acc >= best_acc:
             best_acc, best_state = acc, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             best_report = report
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"arch": args.arch, "classes": CLASSES, "state_dict": best_state, "input_size": [160, 320],
+    torch.save({"arch": args.arch, "classes": classes, "state_dict": best_state, "input_size": [160, 320],
                 "mean": MEAN, "std": STD, "val_acc": best_acc, "n_train": len(train), "n_val": len(val)}, args.out)
     (args.out.parent / "classifier_report.json").write_text(json.dumps(
         {"val_acc": best_acc, "n_train": len(train), "n_val": len(val), "class_counts": dict(Counter(c for _, c in files)),
@@ -154,7 +164,7 @@ def main() -> int:
     return 0
 
 
-def evaluate(model, dl, device) -> tuple[float, dict]:
+def evaluate(model, dl, device, classes) -> tuple[float, dict]:
     import torch
     model.eval()
     correct = total = 0
@@ -169,7 +179,7 @@ def evaluate(model, dl, device) -> tuple[float, dict]:
                 else:
                     fp[p] += 1; fn[t] += 1
     report = {}
-    for i, c in enumerate(CLASSES):
+    for i, c in enumerate(classes):
         n = tp[i] + fn[i]
         report[c] = {"support": n,
                      "precision": round(tp[i] / (tp[i] + fp[i]), 3) if tp[i] + fp[i] else None,

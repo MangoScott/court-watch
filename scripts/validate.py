@@ -6,6 +6,10 @@ nearest site in data/change/court_tracks_raw.json, and compares per-year
 class counts with the expectations. Exits non-zero if any check fails, so it
 can gate the "expand beyond Ohio" decision.
 
+An expectation block may carry ``requires_imagery_from: <year>``; it is
+reported as SKIP (not FAIL) while the newest available imagery is older.
+Ground truth known from the ground often postdates the newest public flight.
+
 Expectation keys per year (or ``latest``)::
 
     tennis / hybrid / pickleball / padel / removed   number of court footprints in that class
@@ -79,6 +83,12 @@ def check(cfg: dict, tracks: dict) -> bool:
     ok = True
     tol = int(cfg.get("tolerance", 0))
     for year_key, expect in cfg["expect"].items():
+        expect = dict(expect)
+        min_year = expect.pop("requires_imagery_from", None)
+        if min_year is not None and max(site["years"]) < int(min_year):
+            print(f"  SKIP {year_key}: needs imagery from {min_year} or later; newest available is {max(site['years'])}"
+                  f" (expected {', '.join(f'{k}={v}' for k, v in expect.items())})")
+            continue
         year = max(site["years"]) if year_key == "latest" else int(year_key)
         if year not in site["years"]:
             near = min(site["years"], key=lambda y: abs(y - year)) if site["years"] else None
