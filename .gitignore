@@ -2,6 +2,9 @@
 data/*
 !data/README.md
 !data/validation/
+!data/review/
+data/review/*
+!data/review/overrides.csv
 !data/labels/
 data/labels/*
 !data/labels/manual/

@@ -76,6 +76,17 @@ run by run.
 
 `.github/workflows/tests.yml` runs the offline test suite on every push.
 
+### Reviewing flagged courts (Scott's job, kept small)
+
+Open **https://mangoscott.github.io/court-watch/review.html**. Each flagged
+court is shown as a strip of zoomed crops, one per imagery year, with a link
+to the live satellite view. Click what the court is today (or "model is
+right"), optionally set the year the change happened, and press **Copy
+corrections**. Paste the text to Claude, or append it to
+`data/review/overrides.csv` on GitHub. `.github/workflows/apply-overrides.yml`
+re-exports the dataset and the site whenever that file changes. Verdicts are
+stored in the browser until copied; nothing is uploaded automatically.
+
 ## Running Ohio (by hand)
 
 Every step is resumable: rerun the same command after an interruption and it
@@ -239,6 +250,15 @@ data/                     gitignored except validation/ and README.md
 ```
 
 Every script's `--help` is its documentation.
+
+## Imagery recency
+
+The newest NAIP flight of Ohio on the Planetary Computer is May 2023, so
+conversions after that (Sawyer Point among them) are not yet visible to the
+pipeline. Ohio's own imagery program (OSIP 4, 6-inch resolution, free,
+acquisition started spring 2025 and runs through 2028) is the best next
+source: a `02` variant that reads OSIP web services would both refresh the
+timeline and make pickleball lines far easier to see. Not started.
 
 ## Known gaps
 
