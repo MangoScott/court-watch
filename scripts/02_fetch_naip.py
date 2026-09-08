@@ -24,6 +24,8 @@ Usage::
     python scripts/02_fetch_naip.py --state OH --limit 20     # first 20 sites (smoke test)
     python scripts/02_fetch_naip.py --site-id oh_3909750_-8449660
     python scripts/02_fetch_naip.py --state OH --workers 4
+    python scripts/02_fetch_naip.py --state OH --near 39.0975,-84.4966          # nearest site to a point
+    python scripts/02_fetch_naip.py --state OH --offset 500 --limit 500        # chunked runs
     python scripts/02_fetch_naip.py --lat 39.0975 --lon -84.4966 --site-id sawyer_point   # ad-hoc point
 
 NAIP is flown per state every 2-3 years (Ohio: 2011, 2013, 2015, 2017, 2019,
@@ -231,8 +233,24 @@ def load_sites(args) -> list[dict]:
         sites = [s for s in sites if s["site_id"] == args.site_id]
         if not sites:
             raise SystemExit(f"site {args.site_id} not in {csv_path}")
+    if args.near:
+        parts = [float(x) for x in args.near.split(",")]
+        lat0, lon0 = parts[0], parts[1]
+        radius = parts[2] if len(parts) > 2 else 500.0
+        import math
+        def dist(s):
+            dlat = (float(s["lat"]) - lat0) * 111320.0
+            dlon = (float(s["lon"]) - lon0) * 111320.0 * math.cos(math.radians(lat0))
+            return math.hypot(dlat, dlon)
+        nearest = min(sites, key=dist)
+        if dist(nearest) > radius:
+            raise SystemExit(f"no site within {radius:.0f} m of {lat0},{lon0}; nearest is {nearest['site_id']} at {dist(nearest):.0f} m")
+        log.info("nearest site to %s,%s is %s (%.0f m)", lat0, lon0, nearest["site_id"], dist(nearest))
+        return [nearest]
     if not args.include_indoor:
         sites = [s for s in sites if str(s.get("any_indoor", "")).lower() not in ("true", "1")]
+    if args.offset:
+        sites = sites[args.offset:]
     if args.limit:
         sites = sites[: args.limit]
     return sites
@@ -247,6 +265,8 @@ def main() -> int:
     ap.add_argument("--lon", type=float)
     ap.add_argument("--years", help="comma-separated years to fetch (default all available)")
     ap.add_argument("--limit", type=int, help="only the first N sites")
+    ap.add_argument("--offset", type=int, default=0, help="skip the first N sites (chunked runs)")
+    ap.add_argument("--near", help="lat,lon[,radius_m]: only the site nearest this point")
     ap.add_argument("--chips-dir", type=Path, default=CHIPS_DIR)
     ap.add_argument("--size", type=int, default=CHIP_SIZE)
     ap.add_argument("--gsd", type=float, default=CHIP_GSD, help="metres per pixel of the output grid")

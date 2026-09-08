@@ -1,0 +1,182 @@
+# One-click pipeline run on GitHub's free runners. No API key, no cost.
+#
+#   1. OSM court locations and footprints for the state
+#   2. NAIP chips for the validation sites plus the next `limit` sites
+#   3. If there are not yet enough labeled crops: make contact sheets for
+#      labeling, commit them, and stop. (Claude Code or a person labels the
+#      sheets into data/labels/manual/labels.csv, then run again.)
+#   4. Otherwise: train the crop classifier, classify every chip, run change
+#      detection and validation, export the dataset, rebuild site/data, commit.
+#
+# Everything under data/ (chips, crops, detections) is saved as a workflow
+# artifact so the next run resumes instead of re-downloading. Runners are
+# capped at 6 hours, so a whole state is done in chunks: raise `offset` by
+# `limit` each run until 02 reports nothing new to fetch.
+name: Run pipeline
+
+on:
+  push:
+    paths: [pipeline_run.yaml]
+  workflow_dispatch:
+    inputs:
+      state:
+        description: Two-letter state
+        default: OH
+      limit:
+        description: Sites to fetch imagery for this run (besides validation sites)
+        default: "300"
+      offset:
+        description: Skip this many sites first (chunked full-state runs)
+        default: "0"
+      sheets:
+        description: Contact sheets to make when more labels are needed (20 crops each)
+        default: "30"
+      min_labels:
+        description: Labeled crops required before training
+        default: "150"
+      force_label:
+        description: Make new contact sheets even if enough labels exist
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+      - run: pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Parameters (from pipeline_run.yaml on push, from inputs on manual runs)
+        id: p
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            python - <<'PY' >> $GITHUB_OUTPUT
+          import yaml
+          d = yaml.safe_load(open("pipeline_run.yaml"))
+          for k in ("state", "limit", "offset", "sheets", "min_labels", "force_label"):
+              print(f"{k}={str(d.get(k, '')).lower() if k == 'force_label' else d.get(k, '')}")
+          PY
+          else
+            {
+              echo "state=${{ inputs.state }}"; echo "limit=${{ inputs.limit }}"; echo "offset=${{ inputs.offset }}"
+              echo "sheets=${{ inputs.sheets }}"; echo "min_labels=${{ inputs.min_labels }}"; echo "force_label=${{ inputs.force_label }}"
+            } >> $GITHUB_OUTPUT
+          fi
+          cat $GITHUB_OUTPUT
+
+      - name: Restore data from the last successful run (chips, detections)
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          workflow: pipeline.yml
+          name: court-watch-data
+          path: data
+          workflow_conclusion: ""
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: 1. OSM sites and court footprints
+        run: python scripts/01_fetch_osm.py --state ${{ steps.p.outputs.state }} --use-cache || python scripts/01_fetch_osm.py --state ${{ steps.p.outputs.state }}
+
+      - name: 2. NAIP chips for validation sites
+        run: |
+          for f in data/validation/*.yaml; do
+            lat=$(python -c "import yaml;print(yaml.safe_load(open('$f'))['lat'])")
+            lon=$(python -c "import yaml;print(yaml.safe_load(open('$f'))['lon'])")
+            python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --near $lat,$lon --workers 4 || echo "::warning::no site near $lat,$lon"
+          done
+      - name: 2. NAIP chips for the next batch of sites
+        run: python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --offset ${{ steps.p.outputs.offset }} --limit ${{ steps.p.outputs.limit }} --workers 4
+
+      - name: Decide mode
+        id: mode
+        run: |
+          n=$(python -c "import csv,pathlib;p=pathlib.Path('data/labels/manual/labels.csv');print(sum(1 for r in csv.DictReader(open(p)) if r.get('class')) if p.exists() else 0)")
+          echo "labels=$n" >> $GITHUB_OUTPUT
+          if [ "$n" -ge "${{ steps.p.outputs.min_labels }}" ] && [ "${{ steps.p.outputs.force_label }}" != "true" ]; then echo "mode=classify" >> $GITHUB_OUTPUT; else echo "mode=label" >> $GITHUB_OUTPUT; fi
+          echo "labels: $n"
+
+      - name: 3. Contact sheets for labeling
+        if: steps.mode.outputs.mode == 'label'
+        run: |
+          if [ "${{ steps.p.outputs.force_label }}" = "true" ]; then git rm -rq --ignore-unmatch data/labels/sheets; rm -rf data/labels/sheets; fi
+          python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --sheets ${{ steps.p.outputs.sheets }}
+          echo "## Labels needed" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.mode.outputs.labels }} labeled crops, need ${{ steps.p.outputs.min_labels }}. New sheets in data/labels/sheets/. Fill data/labels/manual/labels.csv and run again." >> $GITHUB_STEP_SUMMARY
+
+      - name: 3. Export training crops
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --export
+      - name: 4. Train classifier
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/04_train_classifier.py --epochs 15
+      - name: 5. Classify every chip
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/05_detect.py --backend classifier --state ${{ steps.p.outputs.state }} --overwrite
+      - name: 6. Change detection
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/06_change_detection.py
+      - name: Validate against known sites
+        if: steps.mode.outputs.mode == 'classify'
+        id: validate
+        continue-on-error: true
+        run: python scripts/validate.py | tee data/change/validation_report.txt
+      - name: 7. Export dataset and site data
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/07_export.py --state ${{ steps.p.outputs.state }}
+      - name: Spot check sample
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/spot_check.py --source detections --n 50 --seed 1 --out-dir data/review/spot_check_latest
+
+      - name: Save data as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: court-watch-data
+          path: |
+            data
+            !data/yolo
+            !data/demo
+            !data/labels
+          retention-days: 90
+          compression-level: 0
+
+      - name: Commit results
+        run: |
+          git config user.name "court-watch bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f data/osm/*_sites.csv data/osm/*_courts.csv data/labels/sheets 2>/dev/null || true
+          if [ "${{ steps.mode.outputs.mode }}" = "classify" ]; then
+            git add -f site/data data/output data/change/court_tracks_raw.json data/change/review_queue.csv \
+                       data/change/validation_report.txt data/models/classifier_report.json data/review/spot_check_latest
+          fi
+          git commit -m "Pipeline run (${{ steps.mode.outputs.mode }}): ${{ steps.p.outputs.state }} offset ${{ steps.p.outputs.offset }} limit ${{ steps.p.outputs.limit }}" || echo "nothing to commit"
+          git pull --rebase --autostash origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Summary
+        if: steps.mode.outputs.mode == 'classify'
+        run: |
+          echo "## Pipeline run" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat data/change/validation_report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### Classifier" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat data/models/classifier_report.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### State summary" >> $GITHUB_STEP_SUMMARY
+          python -c "import csv;[print('-', k, ':', v) for k, v in list(csv.DictReader(open('data/output/summary_by_state.csv')))[0].items()]" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.validate.outcome }}" != "success" ]; then echo "::warning::Validation failed; see report above"; fi

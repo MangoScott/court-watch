@@ -97,3 +97,19 @@ def test_overrides_roundtrip():
     assert r["current_class"] == "removed"
     assert r["history"][-1]["source"] == "review:scott"
     assert r["history"][-1]["confidence"] == 1.0
+
+
+def test_unknown_pickleball_count_is_not_invented():
+    box = court_obb(0.3, 0.5, TENNIS_W, TENNIS_H)
+    d = {
+        2019: det(2019, [{"class": "tennis", "confidence": 0.9, "obb": box}]),
+        2023: det(2023, [{"class": "pickleball", "confidence": 0.9, "obb": box, "n_courts": None}]),
+    }
+    (tr,) = track_site(d)
+    r = summarize_track(tr)
+    assert r["current_n_courts"] is None
+    counts = class_counts([r])
+    assert counts["pickleball"] == 1 and counts["pickleball_courts"] == 0 and counts["pickleball_footprints_uncounted"] == 1
+    # roundtrip through dict form keeps None
+    r2 = summarize_track(tracks_from_dicts([r])[0])
+    assert r2["current_n_courts"] is None

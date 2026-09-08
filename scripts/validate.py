@@ -61,8 +61,8 @@ def counts_for_year(site: dict, year: int) -> dict[str, int]:
         cls = obs["class"]
         if cls in c:
             c[cls] += 1
-        if cls == "pickleball":
-            c["pickleball_courts"] += int(obs.get("n_courts", 1) or 1)
+        if cls == "pickleball" and obs.get("n_courts") is not None:
+            c["pickleball_courts"] += int(obs.get("n_courts") or 1)
         if cls in ("tennis", "hybrid"):
             c["tennis_footprints"] += 1
     return c
