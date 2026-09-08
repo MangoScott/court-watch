@@ -1,8 +1,9 @@
 """Synthetic site generator: chips, sidecars and detections for tests and the demo.
 
-The synthetic site mirrors Sawyer Point: eight tennis courts in a row in 2019,
-three of them hybrid by 2021, and by 2023 the other five footprints hold 18
-dedicated pickleball courts (4+4+4+3+3). Coordinates match
+The synthetic site mirrors Sawyer Point: eight tennis courts in a row in 2019
+and still in 2023 (as in the real imagery), and by 2025 three of them are
+hybrid and the other five footprints hold 18 dedicated pickleball courts
+(4+4+4+3+3). Coordinates match
 data/validation/sawyer_point.yaml so validate.py can be exercised offline.
 """
 from __future__ import annotations
@@ -53,19 +54,16 @@ def pickleball_obbs(cx: float, cy: float, n: int) -> list[list[list[float]]]:
 def sawyer_detections() -> dict[int, list[dict]]:
     centres = tennis_centres()
     d2019 = [{"class": "tennis", "confidence": 0.93, "obb": court_obb(cx, cy, TENNIS_W, TENNIS_H), "notes": ""} for cx, cy in centres]
-    d2021 = []
-    for i, (cx, cy) in enumerate(centres):
-        cls = "hybrid" if i >= 5 else "tennis"
-        d2021.append({"class": cls, "confidence": 0.85, "obb": court_obb(cx, cy, TENNIS_W, TENNIS_H), "notes": ""})
-    d2023 = []
+    d2023 = [{"class": "tennis", "confidence": 0.85, "obb": court_obb(cx, cy, TENNIS_W, TENNIS_H), "notes": ""} for cx, cy in centres]
+    d2025 = []
     split = [4, 4, 4, 3, 3]
     for i, (cx, cy) in enumerate(centres):
         if i >= 5:
-            d2023.append({"class": "hybrid", "confidence": 0.88, "obb": court_obb(cx, cy, TENNIS_W, TENNIS_H), "notes": ""})
+            d2025.append({"class": "hybrid", "confidence": 0.88, "obb": court_obb(cx, cy, TENNIS_W, TENNIS_H), "notes": ""})
         else:
             for obb in pickleball_obbs(cx, cy, split[i]):
-                d2023.append({"class": "pickleball", "confidence": 0.8, "obb": obb, "notes": ""})
-    return {2019: d2019, 2021: d2021, 2023: d2023}
+                d2025.append({"class": "pickleball", "confidence": 0.8, "obb": obb, "notes": ""})
+    return {2019: d2019, 2023: d2023, 2025: d2025}
 
 
 def write_chip(png: Path, courts: list[dict]) -> None:

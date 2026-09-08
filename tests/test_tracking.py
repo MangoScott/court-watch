@@ -19,6 +19,7 @@ def test_sawyer_point_history():
     kinds = sorted(tuple((t["from"], t["to"]) for t in r["transitions"]) for r in recs)
     assert kinds.count((("tennis", "hybrid"),)) == 3
     assert kinds.count((("tennis", "pickleball"),)) == 5
+    assert all(t["year_to"] == 2025 for r in recs for t in r["transitions"])
     for r in recs:
         assert not r["needs_review"], r
 

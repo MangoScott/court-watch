@@ -28,6 +28,7 @@ Usage::
     python scripts/03_make_crops.py --state OH --sheets 30      # 600 crops to label
     python scripts/03_make_crops.py --export
     python scripts/03_make_crops.py --state OH --sheets 10 --seed 3 --sport pickleball
+    python scripts/03_make_crops.py --state OH --sheets 14 --rare-only --recent 3   # feed the rare classes
 
 crop_id is ``<court_id>:<year>``. Chips and sheets are only read/written under
 data/, nothing is downloaded.
@@ -87,17 +88,33 @@ def all_candidates(chips: list[dict], courts: dict[str, list[dict]]) -> list[dic
     return out
 
 
-def sample_candidates(cands: list[dict], n: int, seed: int, labeled: set[str], sport: str | None) -> list[dict]:
+def is_rare(c: dict) -> bool:
+    court = c["court"]
+    return court["sport"] in ("pickleball", "padel") or int(court.get("n_overlay") or 0) > 0
+
+
+def sample_candidates(cands: list[dict], n: int, seed: int, labeled: set[str], sport: str | None,
+                      rare_only: bool = False, recent: int | None = None) -> list[dict]:
+    """Pick crops to label. ``rare_only`` restricts to courts OSM tags as
+    pickleball/padel or as tennis with pickleball drawn on it (the classes a
+    random sample starves). ``recent`` keeps only each site's newest N years."""
     rng = random.Random(seed)
     cands = [c for c in cands if c["crop_id"] not in labeled and (not sport or c["court"]["sport"] == sport)]
+    if rare_only:
+        cands = [c for c in cands if is_rare(c)]
+    if recent:
+        site_years: dict[str, set] = {}
+        for c in cands:
+            site_years.setdefault(c["chip"]["site_id"], set()).add(c["chip"]["year"])
+        keep = {s: sorted(ys)[-recent:] for s, ys in site_years.items()}
+        cands = [c for c in cands if c["chip"]["year"] in keep[c["chip"]["site_id"]]]
+    if not cands:
+        return []
     latest_year = {}
     for c in cands:
         latest_year[c["chip"]["site_id"]] = max(latest_year.get(c["chip"]["site_id"], 0), c["chip"]["year"])
     latest = [c for c in cands if c["chip"]["year"] == latest_year[c["chip"]["site_id"]]]
     older = [c for c in cands if c["chip"]["year"] != latest_year[c["chip"]["site_id"]]]
-    def is_rare(c):
-        court = c["court"]
-        return court["sport"] in ("pickleball", "padel") or int(court.get("n_overlay") or 0) > 0
     rare = [c for c in latest if is_rare(c)]
     common_latest = [c for c in latest if c not in rare]
     rng.shuffle(rare); rng.shuffle(common_latest); rng.shuffle(older)
@@ -170,6 +187,8 @@ def main() -> int:
     ap.add_argument("--crops-dir", type=Path, default=CROPS_DIR)
     ap.add_argument("--sheets", type=int, help="number of contact sheets to create (20 crops each)")
     ap.add_argument("--sport", choices=["tennis", "pickleball", "padel"], help="only courts OSM tags with this sport")
+    ap.add_argument("--rare-only", action="store_true", help="only OSM pickleball/padel courts and tennis courts with pickleball overlays")
+    ap.add_argument("--recent", type=int, help="only each site's newest N imagery years")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--export", action="store_true", help="write labeled crops to data/crops/train/<class>/")
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -185,7 +204,7 @@ def main() -> int:
         chips = list_chips(args.chips_dir)
         cands = all_candidates(chips, courts)
         already = set(labels) | {c["crop_id"] for j in args.sheets_dir.glob("sheet_*.json") for c in read_json(j)["crops"]} if args.sheets_dir.exists() else set(labels)
-        picked = sample_candidates(cands, args.sheets * PER_SHEET, args.seed, already, args.sport)
+        picked = sample_candidates(cands, args.sheets * PER_SHEET, args.seed, already, args.sport, args.rare_only, args.recent)
         n = make_sheets(picked, args.sheets_dir, args.chips_dir)
         log.info("%d candidate crops, %d sheets written to %s", len(cands), n, args.sheets_dir)
     if args.export:

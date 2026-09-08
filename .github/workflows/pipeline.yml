@@ -31,6 +31,9 @@ on:
       sheets:
         description: Contact sheets to make when more labels are needed (20 crops each)
         default: "30"
+      sheets_rare:
+        description: Extra sheets drawn only from OSM pickleball/overlay courts, newest 3 years
+        default: "0"
       min_labels:
         description: Labeled crops required before training
         default: "150"
@@ -66,13 +69,13 @@ jobs:
             python - <<'PY' >> $GITHUB_OUTPUT
           import yaml
           d = yaml.safe_load(open("pipeline_run.yaml"))
-          for k in ("state", "limit", "offset", "sheets", "min_labels", "force_label"):
+          for k in ("state", "limit", "offset", "sheets", "sheets_rare", "min_labels", "force_label"):
               print(f"{k}={str(d.get(k, '')).lower() if k == 'force_label' else d.get(k, '')}")
           PY
           else
             {
               echo "state=${{ inputs.state }}"; echo "limit=${{ inputs.limit }}"; echo "offset=${{ inputs.offset }}"
-              echo "sheets=${{ inputs.sheets }}"; echo "min_labels=${{ inputs.min_labels }}"; echo "force_label=${{ inputs.force_label }}"
+              echo "sheets=${{ inputs.sheets }}"; echo "sheets_rare=${{ inputs.sheets_rare }}"; echo "min_labels=${{ inputs.min_labels }}"; echo "force_label=${{ inputs.force_label }}"
             } >> $GITHUB_OUTPUT
           fi
           cat $GITHUB_OUTPUT
@@ -116,6 +119,9 @@ jobs:
         if: steps.mode.outputs.mode == 'label'
         run: |
           if [ "${{ steps.p.outputs.force_label }}" = "true" ]; then git rm -rq --ignore-unmatch data/labels/sheets; rm -rf data/labels/sheets; fi
+          if [ "${{ steps.p.outputs.sheets_rare }}" != "0" ] && [ -n "${{ steps.p.outputs.sheets_rare }}" ]; then
+            python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --sheets ${{ steps.p.outputs.sheets_rare }} --rare-only --recent 3
+          fi
           python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --sheets ${{ steps.p.outputs.sheets }}
           echo "## Labels needed" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.mode.outputs.labels }} labeled crops, need ${{ steps.p.outputs.min_labels }}. New sheets in data/labels/sheets/. Fill data/labels/manual/labels.csv and run again." >> $GITHUB_STEP_SUMMARY

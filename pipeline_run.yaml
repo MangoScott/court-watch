@@ -4,7 +4,8 @@
 state: OH
 limit: 300         # sites to fetch imagery for this run, besides validation sites
 offset: 0          # skip this many sites first (chunked full-state runs)
-sheets: 30         # contact sheets to make when more labels are needed (20 crops each)
+sheets: 20         # contact sheets to make when more labels are needed (20 crops each)
+sheets_rare: 14    # extra sheets from OSM pickleball/overlay courts only, newest 3 years
 min_labels: 150    # labeled crops required before training
-force_label: false # make new sheets even if enough labels exist
-run: 5             # bump to re-run with the same settings
+force_label: true # make new sheets even if enough labels exist
+run: 6             # bump to re-run with the same settings

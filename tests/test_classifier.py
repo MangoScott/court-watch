@@ -84,7 +84,7 @@ def test_sheets_train_classify(tmp_path):
     det_out = tmp_path / "det_out"
     run(S / "05_detect.py", "--backend", "classifier", "--chips-dir", chips, "--det-dir", det_out,
         "--classifier", model, "--courts", courts_csv, "--batch-size", "8")
-    rec = json.loads((det_out / "raw" / site_id / "2023.json").read_text())
+    rec = json.loads((det_out / "raw" / site_id / "2025.json").read_text())
     assert len(rec["courts"]) == 8
     c = rec["courts"][0]
     assert c["class"] in ("tennis", "hybrid", "pickleball", "padel", "removed", "unusable")

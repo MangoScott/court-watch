@@ -35,12 +35,12 @@ def main() -> int:
         make_site_id("OH", 39.9612, -82.9988): (39.9612, -82.9988, {   # Columbus: two courts, one removed
             2019: [{"class": "tennis", "confidence": 0.9, "obb": court_obb(0.4, 0.5, TENNIS_W, TENNIS_H), "notes": ""},
                    {"class": "tennis", "confidence": 0.9, "obb": court_obb(0.4 + 40 / 512, 0.5, TENNIS_W, TENNIS_H), "notes": ""}],
-            2021: [{"class": "tennis", "confidence": 0.9, "obb": court_obb(0.4, 0.5, TENNIS_W, TENNIS_H), "notes": ""}],
             2023: [{"class": "tennis", "confidence": 0.9, "obb": court_obb(0.4, 0.5, TENNIS_W, TENNIS_H), "notes": ""}],
+            2025: [{"class": "tennis", "confidence": 0.9, "obb": court_obb(0.4, 0.5, TENNIS_W, TENNIS_H), "notes": ""}],
         }),
         make_site_id("OH", 41.4993, -81.6944): (41.4993, -81.6944, {   # Cleveland: padel build and a low-confidence hybrid
-            2021: [{"class": "tennis", "confidence": 0.55, "obb": court_obb(0.5, 0.5, TENNIS_W, TENNIS_H), "notes": "shadow"}],
-            2023: [{"class": "hybrid", "confidence": 0.5, "obb": court_obb(0.5, 0.5, TENNIS_W, TENNIS_H), "notes": "faint lines"},
+            2023: [{"class": "tennis", "confidence": 0.55, "obb": court_obb(0.5, 0.5, TENNIS_W, TENNIS_H), "notes": "shadow"}],
+            2025: [{"class": "hybrid", "confidence": 0.5, "obb": court_obb(0.5, 0.5, TENNIS_W, TENNIS_H), "notes": "faint lines"},
                    {"class": "padel", "confidence": 0.9, "obb": court_obb(0.7, 0.5, 17 / 512, 34 / 512), "notes": ""}],
         }),
     }

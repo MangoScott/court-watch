@@ -71,7 +71,7 @@ def main() -> int:
     ap.add_argument("--epochs", type=int, default=25)
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--lr", type=float, default=3e-4)
-    ap.add_argument("--val-frac", type=float, default=0.2)
+    ap.add_argument("--val-frac", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--no-pretrained", action="store_true", help="random init instead of ImageNet weights (offline tests)")
@@ -118,12 +118,17 @@ def main() -> int:
             with Image.open(p) as im:
                 return self.tf(im.convert("RGB")), classes.index(c)
 
-    # mild class weighting (inverse sqrt frequency): rare classes matter, but the
-    # model should still respect the real class balance
+    # Rare classes are what this project is about, so balance them: sample with
+    # weight 1/sqrt(freq) and weight the loss by 1/sqrt(freq) as well (together
+    # roughly inverse-frequency), capped so a class with 3 examples cannot dominate.
     counts = Counter(c for _, c in train)
-    class_w = torch.tensor([1.0 / math.sqrt(counts.get(c, 0) or 1) for c in classes])
-    class_w = class_w / class_w.mean()
-    dl_train = DataLoader(Crops(train, train_tf), batch_size=args.batch, shuffle=True, num_workers=args.workers)
+    def w(c):
+        return min(1.0 / math.sqrt(counts.get(c, 0) or 1), 1.0 / math.sqrt(3))
+    class_w = torch.tensor([w(c) for c in classes])
+    class_w = class_w / class_w[[classes.index(c) for c in counts]].mean()
+    sample_w = [w(c) for _, c in train]
+    sampler = torch.utils.data.WeightedRandomSampler(sample_w, num_samples=len(train), replacement=True)
+    dl_train = DataLoader(Crops(train, train_tf), batch_size=args.batch, sampler=sampler, num_workers=args.workers)
     dl_val = DataLoader(Crops(val, val_tf), batch_size=args.batch, num_workers=args.workers) if val else None
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
