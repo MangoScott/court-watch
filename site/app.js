@@ -19,6 +19,12 @@
   $("n-pb-courts").textContent = num(summary.pickleball_courts);
   $("n-padel").textContent = num(summary.current_padel);
   $("n-removed").textContent = num(summary.current_removed);
+  if (summary.demo) {
+    const b = document.createElement("div");
+    b.id = "demo-banner";
+    b.textContent = "Demo with synthetic data. These are not real courts or real numbers; the Ohio run has not been published yet.";
+    document.body.prepend(b);
+  }
   if (summary.state) $("state").textContent = { OH: "Ohio" }[summary.state] || summary.state;
   $("fine").textContent = summary.generated_at
     ? `${num(summary.footprints)} court footprints at ${num(summary.n_sites)} sites. ${num(summary.needs_review)} flagged for review. Updated ${summary.generated_at.slice(0, 10)}.`

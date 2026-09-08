@@ -53,6 +53,11 @@ def main() -> int:
     shutil.rmtree(SITE_DIR / "data" / "chips", ignore_errors=True)
     subprocess.check_call([py, ROOT / "scripts" / "07_export.py", "--tracks", demo / "change" / "court_tracks_raw.json",
                            "--chips-dir", demo / "chips", "--out-dir", demo / "output", "--site-dir", SITE_DIR, "--no-county"])
+    import json
+    summary_path = SITE_DIR / "data" / "summary.json"
+    summary = json.loads(summary_path.read_text())
+    summary["demo"] = True
+    summary_path.write_text(json.dumps(summary, indent=2))
     print(f"demo data in {demo}; site data in {SITE_DIR / 'data'}. Serve with: python -m http.server -d site 8000")
     return 0
 

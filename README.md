@@ -44,7 +44,26 @@ python scripts/make_demo.py
 python -m http.server -d site 8000         # http://localhost:8000
 ```
 
-## Running Ohio
+## Hosting and automation
+
+The map is served free by GitHub Pages at
+**https://mangoscott.github.io/court-watch/**. `.github/workflows/pages.yml`
+redeploys it on every push to the default branch. Until real results are
+committed to `site/data/`, it deploys a clearly labelled synthetic demo.
+
+`.github/workflows/pipeline.yml` runs the whole pipeline on GitHub's servers
+from the Actions tab ("Run pipeline" -> "Run workflow"). It needs one thing
+set up once: the repository secret `ANTHROPIC_API_KEY` (Settings -> Secrets
+and variables -> Actions -> New repository secret). Each run fetches the
+validation sites plus the next `limit` sites, labels every chip with Claude,
+runs change detection and validation, exports, commits `site/data/` so the map
+updates, and saves all of `data/` as a workflow artifact so the next run
+resumes instead of re-downloading. GitHub jobs are capped at 6 hours, so the
+full state is done in chunks by raising `offset` run by run.
+
+`.github/workflows/tests.yml` runs the offline test suite on every push.
+
+## Running Ohio (by hand)
 
 Every step is resumable: rerun the same command after an interruption and it
 picks up where it stopped. Nothing is ever re-downloaded or re-labeled.

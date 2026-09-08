@@ -1,0 +1,130 @@
+# One-click pipeline run on GitHub's servers. Needs the repository secret
+# ANTHROPIC_API_KEY (Settings -> Secrets and variables -> Actions).
+#
+# Fetches OSM sites for the state, downloads NAIP chips for the Sawyer Point
+# site plus the first N sites, labels every chip with Claude, runs change
+# detection, validates against data/validation/, exports the dataset and
+# rebuilds site/data/, then commits the results so Pages redeploys.
+#
+# Runners have a 6 hour limit, so the full state must be done in chunks
+# (raise `limit` and `offset` run by run). Everything under data/ is also
+# saved as a workflow artifact so no download or API call is wasted.
+name: Run pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      state:
+        description: Two-letter state
+        default: OH
+      limit:
+        description: Number of sites to fetch imagery for (besides validation sites)
+        default: "25"
+      offset:
+        description: Skip this many sites first (for chunked full-state runs)
+        default: "0"
+      model:
+        description: Claude model for labeling
+        default: claude-opus-5
+      commit:
+        description: Commit outputs and site data back to the branch
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secret
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret is not set. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+
+      - name: Restore data from the last successful run (chips, labels, detections)
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          workflow: pipeline.yml
+          name: court-watch-data
+          path: data
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: 1. OSM sites
+        run: python scripts/01_fetch_osm.py --state ${{ inputs.state }} --use-cache || python scripts/01_fetch_osm.py --state ${{ inputs.state }}
+
+      - name: 2. NAIP chips for validation sites
+        run: |
+          for f in data/validation/*.yaml; do
+            lat=$(python -c "import yaml,sys;print(yaml.safe_load(open('$f'))['lat'])")
+            lon=$(python -c "import yaml,sys;print(yaml.safe_load(open('$f'))['lon'])")
+            python scripts/02_fetch_naip.py --state ${{ inputs.state }} --near $lat,$lon --workers 4
+          done
+      - name: 2. NAIP chips for the next batch of sites
+        run: python scripts/02_fetch_naip.py --state ${{ inputs.state }} --offset ${{ inputs.offset }} --limit ${{ inputs.limit }} --workers 4
+
+      - name: 5. Label every chip with Claude
+        run: python scripts/05_detect.py --backend claude --model ${{ inputs.model }}
+
+      - name: 6. Change detection
+        run: python scripts/06_change_detection.py
+
+      - name: Validate against known sites
+        id: validate
+        continue-on-error: true
+        run: python scripts/validate.py | tee data/change/validation_report.txt
+
+      - name: 7. Export dataset and site data
+        run: python scripts/07_export.py --state ${{ inputs.state }}
+
+      - name: Spot check sample
+        run: python scripts/spot_check.py --source detections --n 50 --seed 1 --out-dir data/review/spot_check_latest
+
+      - name: Save all data as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: court-watch-data
+          path: |
+            data
+            !data/yolo
+          retention-days: 90
+          compression-level: 0
+
+      - name: Commit outputs
+        if: ${{ inputs.commit }}
+        run: |
+          git config user.name "court-watch bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f site/data data/output data/change/court_tracks_raw.json data/change/review_queue.csv \
+                     data/change/validation_report.txt data/osm/*_sites.csv data/review/spot_check_latest
+          git commit -m "Pipeline run: ${{ inputs.state }} offset ${{ inputs.offset }} limit ${{ inputs.limit }}" || echo "nothing to commit"
+          git pull --rebase origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Summary
+        run: |
+          echo "## Pipeline run" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat data/change/validation_report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### State summary" >> $GITHUB_STEP_SUMMARY
+          python -c "import csv;[print('-', k, ':', v) for k, v in list(csv.DictReader(open('data/output/summary_by_state.csv')))[0].items()]" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.validate.outcome }}" != "success" ]; then echo "::warning::Validation failed; see report above"; fi

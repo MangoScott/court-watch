@@ -48,3 +48,5 @@ footer a{color:#7fb4ff}
   #app{grid-template-columns:1fr;grid-template-rows:55% 45%}
   #panel{order:2;border-right:0;border-top:1px solid var(--line)}
 }
+#demo-banner{position:fixed;top:0;left:0;right:0;z-index:20;background:var(--hybrid);color:#000;font-weight:600;text-align:center;padding:6px 12px;font-size:13px}
+body:has(#demo-banner) #app{padding-top:30px}
