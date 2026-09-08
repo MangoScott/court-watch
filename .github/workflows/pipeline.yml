@@ -16,7 +16,10 @@ name: Run pipeline
 
 on:
   push:
+    branches: [main]
     paths: [pipeline_run.yaml]
+  schedule:
+    - cron: "17 */4 * * *"   # every 4 hours: fetch the next chunk of sites and re-run
   workflow_dispatch:
     inputs:
       state:
@@ -65,10 +68,18 @@ jobs:
       - name: Parameters (from pipeline_run.yaml on push, from inputs on manual runs)
         id: p
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "schedule" ]; then
             python - <<'PY' >> $GITHUB_OUTPUT
-          import yaml
+          import json, os, pathlib, yaml
           d = yaml.safe_load(open("pipeline_run.yaml"))
+          if "${{ github.event_name }}" == "schedule":
+              # unattended: continue from where the last run stopped, never make sheets
+              prog = pathlib.Path("data/progress.json")
+              p = json.loads(prog.read_text()) if prog.exists() else {}
+              d["offset"] = int(p.get("next_offset", 0))
+              d["force_label"] = False
+              if p.get("done"):
+                  d["limit"] = 0
           for k in ("state", "limit", "offset", "sheets", "sheets_rare", "min_labels", "force_label"):
               print(f"{k}={str(d.get(k, '')).lower() if k == 'force_label' else d.get(k, '')}")
           PY
@@ -105,7 +116,22 @@ jobs:
             python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --near $lat,$lon --workers 4 || echo "::warning::no site near $lat,$lon"
           done
       - name: 2. NAIP chips for the next batch of sites
-        run: python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --offset ${{ steps.p.outputs.offset }} --limit ${{ steps.p.outputs.limit }} --workers 4
+        run: |
+          if [ "${{ steps.p.outputs.limit }}" != "0" ]; then
+            python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --offset ${{ steps.p.outputs.offset }} --limit ${{ steps.p.outputs.limit }} --workers 4
+          fi
+          python - <<'PY'
+          import csv, json, pathlib
+          sites = [r for r in csv.DictReader(open("data/osm/${{ steps.p.outputs.state }}_sites.csv")) if str(r.get("any_indoor","")).lower() not in ("true","1")]
+          nxt = int("${{ steps.p.outputs.offset }}") + int("${{ steps.p.outputs.limit }}")
+          done = nxt >= len(sites)
+          pathlib.Path("data/progress.json").write_text(json.dumps({"state": "${{ steps.p.outputs.state }}", "next_offset": min(nxt, len(sites)), "total_sites": len(sites), "done": done}, indent=1))
+          print("progress:", open("data/progress.json").read())
+          PY
+      - name: 2b. Newer OSIP imagery (Ohio only; skipped quietly if the service is unavailable)
+        if: steps.p.outputs.state == 'OH'
+        continue-on-error: true
+        run: python scripts/02b_fetch_osip.py --fetch --state OH --min-year 2024 --offset 0 --limit 100000
 
       - name: Decide mode
         id: mode
@@ -167,7 +193,7 @@ jobs:
         run: |
           git config user.name "court-watch bot"
           git config user.email "actions@users.noreply.github.com"
-          git add -f data/osm/*_sites.csv data/osm/*_courts.csv data/labels/sheets 2>/dev/null || true
+          git add -f data/osm/*_sites.csv data/osm/*_courts.csv data/labels/sheets data/progress.json 2>/dev/null || true
           if [ "${{ steps.mode.outputs.mode }}" = "classify" ]; then
             git add -f site/data data/output data/change/court_tracks_raw.json data/change/review_queue.csv \
                        data/change/validation_report.txt data/models/classifier_report.json data/review/spot_check_latest

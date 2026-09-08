@@ -4,6 +4,7 @@ name: Apply review overrides
 
 on:
   push:
+    branches: [main]
     paths: [data/review/overrides.csv]
   workflow_dispatch:
 
