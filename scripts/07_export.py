@@ -143,6 +143,7 @@ def summarize(gdf, by: list[str]) -> list[dict]:
             **{f"current_{c}": counts.get(c, 0) for c in CLASSES},
             f"current_{UNKNOWN}": counts.get(UNKNOWN, 0),
             "pickleball_courts": counts["pickleball_courts"],
+            "pickleball_footprints_uncounted": counts["pickleball_footprints_uncounted"],
             "ever_tennis": sum(1 for r in recs if r["ever_tennis"]),
             "tennis_to_hybrid": sum(1 for t in trans if t["from"] == "tennis" and t["to"] == "hybrid"),
             "tennis_or_hybrid_to_pickleball": sum(1 for t in trans if t["from"] in ("tennis", "hybrid") and t["to"] == "pickleball"),

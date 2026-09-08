@@ -51,7 +51,7 @@ class Observation:
     cls: str
     confidence: float
     obb: list[list[float]]          # normalized image coords
-    n_courts: int = 1
+    n_courts: int | None = 1          # None = footprint is pickleball but the court count is unknown
     inferred: bool = False          # removed because nothing was detected
     interpolated: bool = False      # gap filled between two matching detections
     imagery_date: str | None = None
@@ -165,7 +165,7 @@ def track_site(
                 c = courts[i]
                 tr.observations.append(Observation(
                     year=year, cls=c["class"], confidence=float(c.get("confidence", 0)),
-                    obb=c["obb"], n_courts=int(c.get("n_courts", 1) or 1),
+                    obb=c["obb"], n_courts=_n_courts(c),
                     imagery_date=imagery_date, source=source, notes=c.get("notes", "") or "",
                 ))
                 used[i] = True
@@ -178,7 +178,7 @@ def track_site(
                 track_id=f"c{next(counter):03d}",
                 observations=[Observation(
                     year=year, cls=c["class"], confidence=float(c.get("confidence", 0)),
-                    obb=c["obb"], n_courts=int(c.get("n_courts", 1) or 1),
+                    obb=c["obb"], n_courts=_n_courts(c),
                     imagery_date=imagery_date, source=source, notes=c.get("notes", "") or "",
                 )],
             ))
@@ -196,6 +196,16 @@ def track_site(
     for tr in tracks:
         _fill_detector_gaps(tr)
     return tracks
+
+
+def _n_courts(c: dict) -> int | None:
+    """Court count for a detection: explicit value, None if explicitly unknown, else 1."""
+    if "n_courts" in c and c["n_courts"] is None:
+        return None
+    try:
+        return int(c.get("n_courts", 1) or 1)
+    except (TypeError, ValueError):
+        return 1
 
 
 def _fill_detector_gaps(tr: Track) -> None:
@@ -309,7 +319,7 @@ def tracks_from_dicts(records: list[dict]) -> list[Track]:
     for rec in records:
         obs = [Observation(
             year=int(h["year"]), cls=h["class"], confidence=float(h["confidence"]),
-            obb=h["obb"], n_courts=int(h.get("n_courts", 1)), inferred=bool(h.get("inferred")),
+            obb=h["obb"], n_courts=_n_courts(h), inferred=bool(h.get("inferred")),
             interpolated=bool(h.get("interpolated")), imagery_date=h.get("imagery_date"),
             notes=h.get("notes", ""), source=h.get("source", ""),
         ) for h in rec["history"]]
@@ -323,11 +333,17 @@ def class_counts(records: list[dict]) -> dict[str, Any]:
     counts = {c: 0 for c in CLASSES}
     counts[UNKNOWN] = 0
     pb_courts = 0
+    pb_unknown = 0
     for r in records:
         counts[r["current_class"]] = counts.get(r["current_class"], 0) + 1
         if r["current_class"] == "pickleball":
-            pb_courts += int(r.get("current_n_courts") or 1)
+            n = r.get("current_n_courts")
+            if n is None:
+                pb_unknown += 1          # footprint is pickleball, individual count not determined
+            else:
+                pb_courts += int(n or 1)
     counts["pickleball_courts"] = pb_courts
+    counts["pickleball_footprints_uncounted"] = pb_unknown
     counts["footprints"] = len(records)
     counts["needs_review"] = sum(1 for r in records if r.get("needs_review"))
     return counts

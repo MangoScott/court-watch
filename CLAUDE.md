@@ -64,6 +64,16 @@ court-watch/
   site/          (static map, GitHub Pages)
 ```
 
+## Free path (current default)
+
+Scott does not want API spend, so the default pipeline uses no paid services:
+court footprints come from OSM geometry (`footprints.py`), each court is cut
+out as an upright crop (`crops.py`), and a ResNet-18 crop classifier trained on
+a few hundred labeled crops (contact sheets from `03_make_crops.py`, labeled by
+Claude Code in-session) replaces both Claude labeling and YOLO. Steps 3-5 of
+the original plan remain in the repo as optional paid upgrades. Never add a
+step that needs an API key to the default workflow.
+
 ## Conventions
 
 * Run scripts from the repo root: `python scripts/01_fetch_osm.py --state OH`.

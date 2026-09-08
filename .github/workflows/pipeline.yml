@@ -1,14 +1,17 @@
-# One-click pipeline run on GitHub's servers. Needs the repository secret
-# ANTHROPIC_API_KEY (Settings -> Secrets and variables -> Actions).
+# One-click pipeline run on GitHub's free runners. No API key, no cost.
 #
-# Fetches OSM sites for the state, downloads NAIP chips for the Sawyer Point
-# site plus the first N sites, labels every chip with Claude, runs change
-# detection, validates against data/validation/, exports the dataset and
-# rebuilds site/data/, then commits the results so Pages redeploys.
+#   1. OSM court locations and footprints for the state
+#   2. NAIP chips for the validation sites plus the next `limit` sites
+#   3. If there are not yet enough labeled crops: make contact sheets for
+#      labeling, commit them, and stop. (Claude Code or a person labels the
+#      sheets into data/labels/manual/labels.csv, then run again.)
+#   4. Otherwise: train the crop classifier, classify every chip, run change
+#      detection and validation, export the dataset, rebuild site/data, commit.
 #
-# Runners have a 6 hour limit, so the full state must be done in chunks
-# (raise `limit` and `offset` run by run). Everything under data/ is also
-# saved as a workflow artifact so no download or API call is wasted.
+# Everything under data/ (chips, crops, detections) is saved as a workflow
+# artifact so the next run resumes instead of re-downloading. Runners are
+# capped at 6 hours, so a whole state is done in chunks: raise `offset` by
+# `limit` each run until 02 reports nothing new to fetch.
 name: Run pipeline
 
 on:
@@ -18,18 +21,21 @@ on:
         description: Two-letter state
         default: OH
       limit:
-        description: Number of sites to fetch imagery for (besides validation sites)
-        default: "25"
+        description: Sites to fetch imagery for this run (besides validation sites)
+        default: "300"
       offset:
-        description: Skip this many sites first (for chunked full-state runs)
+        description: Skip this many sites first (chunked full-state runs)
         default: "0"
-      model:
-        description: Claude model for labeling
-        default: claude-opus-5
-      commit:
-        description: Commit outputs and site data back to the branch
+      sheets:
+        description: Contact sheets to make when more labels are needed (20 crops each)
+        default: "30"
+      min_labels:
+        description: Labeled crops required before training
+        default: "150"
+      force_label:
+        description: Make new contact sheets even if enough labels exist
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -42,88 +48,112 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 350
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check secret
-        run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret is not set. Add it under Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - run: pip install -q -r requirements.txt
+      - run: pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-      - name: Restore data from the last successful run (chips, labels, detections)
+      - name: Restore data from the last successful run (chips, detections)
         uses: dawidd6/action-download-artifact@v6
         continue-on-error: true
         with:
           workflow: pipeline.yml
           name: court-watch-data
           path: data
-          workflow_conclusion: success
+          workflow_conclusion: ""
+          search_artifacts: true
           if_no_artifact_found: warn
 
-      - name: 1. OSM sites
+      - name: 1. OSM sites and court footprints
         run: python scripts/01_fetch_osm.py --state ${{ inputs.state }} --use-cache || python scripts/01_fetch_osm.py --state ${{ inputs.state }}
 
       - name: 2. NAIP chips for validation sites
         run: |
           for f in data/validation/*.yaml; do
-            lat=$(python -c "import yaml,sys;print(yaml.safe_load(open('$f'))['lat'])")
-            lon=$(python -c "import yaml,sys;print(yaml.safe_load(open('$f'))['lon'])")
-            python scripts/02_fetch_naip.py --state ${{ inputs.state }} --near $lat,$lon --workers 4
+            lat=$(python -c "import yaml;print(yaml.safe_load(open('$f'))['lat'])")
+            lon=$(python -c "import yaml;print(yaml.safe_load(open('$f'))['lon'])")
+            python scripts/02_fetch_naip.py --state ${{ inputs.state }} --near $lat,$lon --workers 4 || echo "::warning::no site near $lat,$lon"
           done
       - name: 2. NAIP chips for the next batch of sites
         run: python scripts/02_fetch_naip.py --state ${{ inputs.state }} --offset ${{ inputs.offset }} --limit ${{ inputs.limit }} --workers 4
 
-      - name: 5. Label every chip with Claude
-        run: python scripts/05_detect.py --backend claude --model ${{ inputs.model }}
+      - name: Decide mode
+        id: mode
+        run: |
+          n=$(python -c "import csv,pathlib;p=pathlib.Path('data/labels/manual/labels.csv');print(sum(1 for r in csv.DictReader(open(p)) if r.get('class')) if p.exists() else 0)")
+          echo "labels=$n" >> $GITHUB_OUTPUT
+          if [ "$n" -ge "${{ inputs.min_labels }}" ] && [ "${{ inputs.force_label }}" != "true" ]; then echo "mode=classify" >> $GITHUB_OUTPUT; else echo "mode=label" >> $GITHUB_OUTPUT; fi
+          echo "labels: $n"
 
+      - name: 3. Contact sheets for labeling
+        if: steps.mode.outputs.mode == 'label'
+        run: |
+          python scripts/03_make_crops.py --state ${{ inputs.state }} --sheets ${{ inputs.sheets }}
+          echo "## Labels needed" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.mode.outputs.labels }} labeled crops, need ${{ inputs.min_labels }}. New sheets in data/labels/sheets/. Fill data/labels/manual/labels.csv and run again." >> $GITHUB_STEP_SUMMARY
+
+      - name: 3. Export training crops
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/03_make_crops.py --state ${{ inputs.state }} --export
+      - name: 4. Train classifier
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/04_train_classifier.py --epochs 15
+      - name: 5. Classify every chip
+        if: steps.mode.outputs.mode == 'classify'
+        run: python scripts/05_detect.py --backend classifier --state ${{ inputs.state }} --overwrite
       - name: 6. Change detection
+        if: steps.mode.outputs.mode == 'classify'
         run: python scripts/06_change_detection.py
-
       - name: Validate against known sites
+        if: steps.mode.outputs.mode == 'classify'
         id: validate
         continue-on-error: true
         run: python scripts/validate.py | tee data/change/validation_report.txt
-
       - name: 7. Export dataset and site data
+        if: steps.mode.outputs.mode == 'classify'
         run: python scripts/07_export.py --state ${{ inputs.state }}
-
       - name: Spot check sample
+        if: steps.mode.outputs.mode == 'classify'
         run: python scripts/spot_check.py --source detections --n 50 --seed 1 --out-dir data/review/spot_check_latest
 
-      - name: Save all data as an artifact
+      - name: Save data as an artifact
         uses: actions/upload-artifact@v4
         with:
           name: court-watch-data
           path: |
             data
             !data/yolo
+            !data/demo
           retention-days: 90
           compression-level: 0
 
-      - name: Commit outputs
-        if: ${{ inputs.commit }}
+      - name: Commit results
         run: |
           git config user.name "court-watch bot"
           git config user.email "actions@users.noreply.github.com"
-          git add -f site/data data/output data/change/court_tracks_raw.json data/change/review_queue.csv \
-                     data/change/validation_report.txt data/osm/*_sites.csv data/review/spot_check_latest
-          git commit -m "Pipeline run: ${{ inputs.state }} offset ${{ inputs.offset }} limit ${{ inputs.limit }}" || echo "nothing to commit"
+          git add -f data/osm/*_sites.csv data/osm/*_courts.csv data/labels/sheets 2>/dev/null || true
+          if [ "${{ steps.mode.outputs.mode }}" = "classify" ]; then
+            git add -f site/data data/output data/change/court_tracks_raw.json data/change/review_queue.csv \
+                       data/change/validation_report.txt data/models/classifier_report.json data/review/spot_check_latest
+          fi
+          git commit -m "Pipeline run (${{ steps.mode.outputs.mode }}): ${{ inputs.state }} offset ${{ inputs.offset }} limit ${{ inputs.limit }}" || echo "nothing to commit"
           git pull --rebase origin ${{ github.ref_name }}
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Summary
+        if: steps.mode.outputs.mode == 'classify'
         run: |
           echo "## Pipeline run" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat data/change/validation_report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### Classifier" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat data/models/classifier_report.json >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "### State summary" >> $GITHUB_STEP_SUMMARY
           python -c "import csv;[print('-', k, ':', v) for k, v in list(csv.DictReader(open('data/output/summary_by_state.csv')))[0].items()]" >> $GITHUB_STEP_SUMMARY

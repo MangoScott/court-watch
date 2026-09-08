@@ -2,6 +2,10 @@
 data/*
 !data/README.md
 !data/validation/
+!data/labels/
+data/labels/*
+!data/labels/manual/
+!data/labels/sheets/
 !data/samples/
 data/samples/**/*.png
 data/samples/**/*.tif

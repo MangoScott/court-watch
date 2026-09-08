@@ -7,10 +7,13 @@ care which backend produced them. Existing files are skipped.
 
 Backends::
 
-    --backend yolo    (default) data/models/best.pt from 04_train_obb.py
-    --backend claude  label every chip with Claude directly. No training needed;
-                      costs roughly $0.01-0.02 per chip. Fine for one state,
-                      and useful as a second opinion on the YOLO output.
+    --backend classifier  (default, free) OSM court footprints + the crop
+                          classifier from 04_train_classifier.py. Box geometry
+                          comes from data/osm/<STATE>_courts.csv, the class from
+                          the model. Individual pickleball court counts are
+                          reported as unknown (n_courts null).
+    --backend yolo        data/models/best.pt from 04_train_obb.py
+    --backend claude      label every chip with Claude directly (paid API).
 
 Usage::
 
@@ -47,6 +50,65 @@ def base_record(chip: dict, source: str) -> dict:
         "chip_notes": "low imagery coverage" if chip.get("low_coverage") else "",
         "detected_at": datetime.now(timezone.utc).isoformat(), "courts": [],
     }
+
+
+def run_classifier(chips: list[dict], det_dir: Path, weights: Path, courts_csv: Path, batch: int) -> None:
+    try:
+        import torch
+        from torchvision import transforms
+    except ImportError:
+        raise SystemExit("torch missing: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu")
+    if not weights.exists():
+        raise SystemExit(f"{weights} missing; run 04_train_classifier.py first")
+    import importlib
+    from PIL import Image
+    from crops import crop_court, lonlat_ring_to_pixels, pixels_to_norm_obb
+    from common import read_csv, read_json
+    import json as _json
+
+    train_mod = importlib.import_module("04_train_classifier")
+    ckpt = torch.load(weights, map_location="cpu", weights_only=False)
+    classes = ckpt["classes"]
+    model = train_mod.build_model(ckpt["arch"], len(classes))
+    model.load_state_dict(ckpt["state_dict"])
+    model.eval()
+    tf = transforms.Compose([transforms.ToTensor(), transforms.Normalize(ckpt["mean"], ckpt["std"])])
+    courts_by_site: dict[str, list[dict]] = {}
+    for r in read_csv(courts_csv):
+        r["ring"] = _json.loads(r["ring"])
+        courts_by_site.setdefault(r["site_id"], []).append(r)
+    source = f"classifier:{weights.name}"
+    for i, chip in enumerate(chips, 1):
+        rec = base_record(chip, source)
+        courts = courts_by_site.get(chip["site_id"], [])
+        if courts and not rec["unusable"]:
+            sidecar = read_json(chip["sidecar"])
+            size = int(sidecar.get("size", 512))
+            with Image.open(chip["png"]) as im:
+                im = im.convert("RGB")
+                pts_list = [lonlat_ring_to_pixels(c["ring"], sidecar) for c in courts]
+                tensors = [tf(crop_court(im, pts)) for pts in pts_list]
+            with torch.no_grad():
+                probs = []
+                for s0 in range(0, len(tensors), batch):
+                    out = model(torch.stack(tensors[s0: s0 + batch]))
+                    probs.extend(torch.softmax(out, 1).tolist())
+            for court, pts, pr in zip(courts, pts_list, probs):
+                k = max(range(len(pr)), key=pr.__getitem__)
+                cls = classes[k]
+                inside = all(0 <= x <= size and 0 <= y <= size for x, y in pts)
+                rec["courts"].append({
+                    "class": cls, "confidence": round(pr[k], 3),
+                    "obb": pixels_to_norm_obb(pts, size), "court_id": court["court_id"],
+                    "n_courts": None if cls == "pickleball" else 1,
+                    "notes": ("" if inside else "footprint partly outside chip; ") +
+                             ("osm geometry guessed from node; " if court.get("guessed") == "True" else "") +
+                             ("subdivided from bank; " if court.get("subdivided") == "True" else ""),
+                    "probs": {c: round(p, 3) for c, p in zip(classes, pr)},
+                })
+        write_json_atomic(detection_path(det_dir, chip["site_id"], chip["year"]), rec)
+        if i % 100 == 0 or i == len(chips):
+            log.info("[%d/%d] classified", i, len(chips))
 
 
 def run_yolo(chips: list[dict], det_dir: Path, weights: Path, conf: float, iou: float, device, batch: int) -> None:
@@ -160,7 +222,10 @@ def collect_claude(det_dir: Path, wait: bool) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--backend", choices=["yolo", "claude"], default="yolo")
+    ap.add_argument("--backend", choices=["classifier", "yolo", "claude"], default="classifier")
+    ap.add_argument("--state", default="OH")
+    ap.add_argument("--courts", type=Path, help="courts CSV for the classifier backend (default data/osm/<STATE>_courts.csv)")
+    ap.add_argument("--classifier", type=Path, default=MODELS_DIR / "classifier.pt")
     ap.add_argument("--chips-dir", type=Path, default=CHIPS_DIR)
     ap.add_argument("--det-dir", type=Path, default=DETECTIONS_DIR)
     ap.add_argument("--site-id")
@@ -201,7 +266,10 @@ def main() -> int:
     log.info("%d chips to detect with %s", len(chips), args.backend)
     if not chips:
         return 0
-    if args.backend == "yolo":
+    if args.backend == "classifier":
+        from common import OSM_DIR
+        run_classifier(chips, args.det_dir, args.classifier, args.courts or OSM_DIR / f"{args.state.upper()}_courts.csv", args.batch_size)
+    elif args.backend == "yolo":
         run_yolo(chips, args.det_dir, args.weights, args.conf, args.iou, args.device, args.batch_size)
     else:
         run_claude(chips, args.det_dir, args.model, args.effort, args.upscale, args.batch)

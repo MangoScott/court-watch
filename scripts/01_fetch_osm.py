@@ -11,7 +11,9 @@ Outputs (in data/osm/)::
 
     <STATE>.gpkg          layer "features": one row per OSM feature
                           layer "sites":    one row per cluster (point centroid)
+                          layer "courts":   one rotated rectangle per court footprint
     <STATE>_sites.csv     site_id, lat, lon, n_features, sports, extent_m, oversized
+    <STATE>_courts.csv    court_id, site_id, osm_ref, sport, ring (lon/lat JSON), flags
     raw/<STATE>_<date>.json   the untouched Overpass response (cached)
 
 Usage::
@@ -39,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     OSM_DIR, SITE_CLUSTER_M, CHIP_SIZE, CHIP_GSD, log, make_site_id, setup_logging, write_csv,
 )
+from footprints import dedupe_footprints, footprints_for_feature  # noqa: E402
 
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
@@ -220,6 +223,45 @@ def cluster_sites(features, state: str, cluster_m: float = SITE_CLUSTER_M):
     return features, sites
 
 
+def derive_courts(features, sites):
+    """One rotated rectangle per court, from OSM geometry (see footprints.py).
+
+    Returns a GeoDataFrame (EPSG:4326) with court_id = <site_id>:f<NN>, the
+    OSM feature it came from, standard-size flags, and ``ring`` (JSON list of
+    four [lon, lat] corners) for downstream scripts that avoid GIS libraries.
+    """
+    import geopandas as gpd
+    from shapely.geometry import Polygon
+
+    rows, geoms = [], []
+    if len(features) == 0:
+        return gpd.GeoDataFrame(rows, geometry=geoms, crs="EPSG:4326")
+    utm = features.estimate_utm_crs()
+    proj = features.to_crs(utm)
+    for site_id, grp in proj.groupby("site_id"):
+        fps = []
+        for idx, feat in grp.iterrows():
+            sport = feat["sport"] if feat["sport"] in ("tennis", "pickleball", "padel") else "tennis"
+            for fp in footprints_for_feature(feat.geometry, sport):
+                fp_d = fp
+                fp_d.osm_ref = feat["osm_ref"]  # type: ignore[attr-defined]
+                fps.append(fp_d)
+        fps = dedupe_footprints(fps)
+        polys = gpd.GeoSeries([fp.polygon() for fp in fps], crs=utm).to_crs("EPSG:4326")
+        for k, (fp, poly) in enumerate(zip(fps, polys)):
+            ring = [[round(x, 7), round(y, 7)] for x, y in list(poly.exterior.coords)[:4]]
+            c = poly.centroid
+            rows.append({
+                "court_id": f"{site_id}:f{k:02d}", "site_id": site_id, "osm_ref": getattr(fp, "osm_ref", ""),
+                "sport": fp.sport, "lat": round(c.y, 7), "lon": round(c.x, 7),
+                "length_m": round(fp.length, 1), "width_m": round(fp.width, 1), "angle_deg": round(fp.angle, 1),
+                "n_in_feature": fp.n_in_feature, "subdivided": fp.subdivided, "guessed": fp.guessed,
+                "oversized": fp.oversized, "ring": json.dumps(ring),
+            })
+            geoms.append(poly)
+    return gpd.GeoDataFrame(rows, geometry=geoms, crs="EPSG:4326")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--state", default="OH", help="two-letter state code (default OH)")
@@ -264,13 +306,21 @@ def main() -> int:
              len(sites), int(sites["oversized"].sum()) if len(sites) else 0,
              int(sites["any_indoor"].sum()) if len(sites) else 0)
 
+    courts = derive_courts(features, sites)
+    if len(courts):
+        log.info("%d court footprints (%d subdivided from banks, %d guessed from nodes, %d oversized)",
+                 len(courts), int(courts["subdivided"].sum()), int(courts["guessed"].sum()), int(courts["oversized"].sum()))
+
     gpkg = args.out_dir / f"{tag}.gpkg"
     if gpkg.exists():
         gpkg.unlink()
     features.to_file(gpkg, layer="features", driver="GPKG")
     sites.to_file(gpkg, layer="sites", driver="GPKG")
+    if len(courts):
+        courts.to_file(gpkg, layer="courts", driver="GPKG")
     write_csv(args.out_dir / f"{tag}_sites.csv", sites.drop(columns="geometry").to_dict("records"))
-    log.info("wrote %s and %s", gpkg, args.out_dir / f"{tag}_sites.csv")
+    write_csv(args.out_dir / f"{tag}_courts.csv", courts.drop(columns="geometry").to_dict("records") if len(courts) else [])
+    log.info("wrote %s, %s and %s", gpkg, args.out_dir / f"{tag}_sites.csv", args.out_dir / f"{tag}_courts.csv")
     return 0
 
 
