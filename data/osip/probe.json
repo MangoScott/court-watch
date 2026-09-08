@@ -1,0 +1,39 @@
+{
+  "probed_at": "2026-09-08T04:28:39.551652+00:00",
+  "directories": {
+    "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP": {
+      "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP?f=json (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f093d5a10>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=45)'))"
+    },
+    "https://geo1.oit.ohio.gov/arcgis/rest/services/OSIP": {
+      "error": "HTTPSConnectionPool(host='geo1.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP?f=json (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo1.oit.ohio.gov', port=443) at 0x7f1f093d6410>, 'Connection to geo1.oit.ohio.gov timed out. (connect timeout=45)'))"
+    }
+  },
+  "services": {
+    "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP/OSIP_6in_best_avail/ImageServer": {
+      "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP/OSIP_6in_best_avail/ImageServer?f=json (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f093f1990>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=45)'))"
+    },
+    "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP/osip_best_avail_1ft/ImageServer": {
+      "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP/osip_best_avail_1ft/ImageServer?f=json (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f093f8f90>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=45)'))"
+    }
+  },
+  "point": {
+    "lat": 39.10279,
+    "lon": -84.49653,
+    "catalog": {
+      "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP/OSIP_6in_best_avail/ImageServer": {
+        "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP/OSIP_6in_best_avail/ImageServer/query?geometry=%7B%22x%22%3A+-84.49653%2C+%22y%22%3A+39.10279%2C+%22spatialReference%22%3A+%7B%22wkid%22%3A+4326%7D%7D&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=%2A&returnGeometry=false&f=json (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f093f0d50>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=45)'))"
+      },
+      "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP/osip_best_avail_1ft/ImageServer": {
+        "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP/osip_best_avail_1ft/ImageServer/query?geometry=%7B%22x%22%3A+-84.49653%2C+%22y%22%3A+39.10279%2C+%22spatialReference%22%3A+%7B%22wkid%22%3A+4326%7D%7D&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=%2A&returnGeometry=false&f=json (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f081554d0>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=45)'))"
+      }
+    },
+    "chips": {
+      "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP/OSIP_6in_best_avail/ImageServer": {
+        "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP/OSIP_6in_best_avail/ImageServer/exportImage?bbox=716326.483031968%2C4331013.763766751%2C716633.683031968%2C4331320.96376675&bboxSR=32616&imageSR=32616&size=512%2C512&format=png&pixelType=U8&interpolation=RSP_BilinearInterpolation&f=image (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f08150ed0>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=120)'))"
+      },
+      "https://geo.oit.ohio.gov/arcgis/rest/services/OSIP/osip_best_avail_1ft/ImageServer": {
+        "error": "HTTPSConnectionPool(host='geo.oit.ohio.gov', port=443): Max retries exceeded with url: /arcgis/rest/services/OSIP/osip_best_avail_1ft/ImageServer/exportImage?bbox=716326.483031968%2C4331013.763766751%2C716633.683031968%2C4331320.96376675&bboxSR=32616&imageSR=32616&size=512%2C512&format=png&pixelType=U8&interpolation=RSP_BilinearInterpolation&f=image (Caused by ConnectTimeoutError(<HTTPSConnection(host='geo.oit.ohio.gov', port=443) at 0x7f1f08157490>, 'Connection to geo.oit.ohio.gov timed out. (connect timeout=120)'))"
+      }
+    }
+  }
+}
