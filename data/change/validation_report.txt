@@ -4,9 +4,10 @@
   PASS 2019 tennis_footprints: expected 8, got 8
   PASS 2019 tennis: expected 8, got 8
   PASS 2019 pickleball: expected 0, got 0
-  FAIL 2023 hybrid: expected 3, got 0
-  FAIL 2023 tennis: expected 0, got 8
-  FAIL 2023 pickleball: expected 5, got 0
-  FAIL 2023 pickleball_courts: expected 18, got 0
+  FAIL 2023 tennis_footprints: expected 8, got 3
+  FAIL 2023 tennis: expected 8, got 2
+  FAIL 2023 hybrid: expected 0, got 1
+  FAIL 2023 pickleball: expected 0, got 5
+  SKIP latest: needs imagery from 2025 or later; newest available is 2023 (expected hybrid=3, tennis=0, pickleball=5, pickleball_courts=18)
 
 SOME CHECKS FAILED
