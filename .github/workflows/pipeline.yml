@@ -15,6 +15,8 @@
 name: Run pipeline
 
 on:
+  push:
+    paths: [pipeline_run.yaml]
   workflow_dispatch:
     inputs:
       state:
@@ -57,6 +59,24 @@ jobs:
       - run: pip install -q -r requirements.txt
       - run: pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
+      - name: Parameters (from pipeline_run.yaml on push, from inputs on manual runs)
+        id: p
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            python - <<'PY' >> $GITHUB_OUTPUT
+          import yaml
+          d = yaml.safe_load(open("pipeline_run.yaml"))
+          for k in ("state", "limit", "offset", "sheets", "min_labels", "force_label"):
+              print(f"{k}={str(d.get(k, '')).lower() if k == 'force_label' else d.get(k, '')}")
+          PY
+          else
+            {
+              echo "state=${{ inputs.state }}"; echo "limit=${{ inputs.limit }}"; echo "offset=${{ inputs.offset }}"
+              echo "sheets=${{ inputs.sheets }}"; echo "min_labels=${{ inputs.min_labels }}"; echo "force_label=${{ inputs.force_label }}"
+            } >> $GITHUB_OUTPUT
+          fi
+          cat $GITHUB_OUTPUT
+
       - name: Restore data from the last successful run (chips, detections)
         uses: dawidd6/action-download-artifact@v6
         continue-on-error: true
@@ -69,42 +89,42 @@ jobs:
           if_no_artifact_found: warn
 
       - name: 1. OSM sites and court footprints
-        run: python scripts/01_fetch_osm.py --state ${{ inputs.state }} --use-cache || python scripts/01_fetch_osm.py --state ${{ inputs.state }}
+        run: python scripts/01_fetch_osm.py --state ${{ steps.p.outputs.state }} --use-cache || python scripts/01_fetch_osm.py --state ${{ steps.p.outputs.state }}
 
       - name: 2. NAIP chips for validation sites
         run: |
           for f in data/validation/*.yaml; do
             lat=$(python -c "import yaml;print(yaml.safe_load(open('$f'))['lat'])")
             lon=$(python -c "import yaml;print(yaml.safe_load(open('$f'))['lon'])")
-            python scripts/02_fetch_naip.py --state ${{ inputs.state }} --near $lat,$lon --workers 4 || echo "::warning::no site near $lat,$lon"
+            python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --near $lat,$lon --workers 4 || echo "::warning::no site near $lat,$lon"
           done
       - name: 2. NAIP chips for the next batch of sites
-        run: python scripts/02_fetch_naip.py --state ${{ inputs.state }} --offset ${{ inputs.offset }} --limit ${{ inputs.limit }} --workers 4
+        run: python scripts/02_fetch_naip.py --state ${{ steps.p.outputs.state }} --offset ${{ steps.p.outputs.offset }} --limit ${{ steps.p.outputs.limit }} --workers 4
 
       - name: Decide mode
         id: mode
         run: |
           n=$(python -c "import csv,pathlib;p=pathlib.Path('data/labels/manual/labels.csv');print(sum(1 for r in csv.DictReader(open(p)) if r.get('class')) if p.exists() else 0)")
           echo "labels=$n" >> $GITHUB_OUTPUT
-          if [ "$n" -ge "${{ inputs.min_labels }}" ] && [ "${{ inputs.force_label }}" != "true" ]; then echo "mode=classify" >> $GITHUB_OUTPUT; else echo "mode=label" >> $GITHUB_OUTPUT; fi
+          if [ "$n" -ge "${{ steps.p.outputs.min_labels }}" ] && [ "${{ steps.p.outputs.force_label }}" != "true" ]; then echo "mode=classify" >> $GITHUB_OUTPUT; else echo "mode=label" >> $GITHUB_OUTPUT; fi
           echo "labels: $n"
 
       - name: 3. Contact sheets for labeling
         if: steps.mode.outputs.mode == 'label'
         run: |
-          python scripts/03_make_crops.py --state ${{ inputs.state }} --sheets ${{ inputs.sheets }}
+          python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --sheets ${{ steps.p.outputs.sheets }}
           echo "## Labels needed" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.mode.outputs.labels }} labeled crops, need ${{ inputs.min_labels }}. New sheets in data/labels/sheets/. Fill data/labels/manual/labels.csv and run again." >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.mode.outputs.labels }} labeled crops, need ${{ steps.p.outputs.min_labels }}. New sheets in data/labels/sheets/. Fill data/labels/manual/labels.csv and run again." >> $GITHUB_STEP_SUMMARY
 
       - name: 3. Export training crops
         if: steps.mode.outputs.mode == 'classify'
-        run: python scripts/03_make_crops.py --state ${{ inputs.state }} --export
+        run: python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --export
       - name: 4. Train classifier
         if: steps.mode.outputs.mode == 'classify'
         run: python scripts/04_train_classifier.py --epochs 15
       - name: 5. Classify every chip
         if: steps.mode.outputs.mode == 'classify'
-        run: python scripts/05_detect.py --backend classifier --state ${{ inputs.state }} --overwrite
+        run: python scripts/05_detect.py --backend classifier --state ${{ steps.p.outputs.state }} --overwrite
       - name: 6. Change detection
         if: steps.mode.outputs.mode == 'classify'
         run: python scripts/06_change_detection.py
@@ -115,7 +135,7 @@ jobs:
         run: python scripts/validate.py | tee data/change/validation_report.txt
       - name: 7. Export dataset and site data
         if: steps.mode.outputs.mode == 'classify'
-        run: python scripts/07_export.py --state ${{ inputs.state }}
+        run: python scripts/07_export.py --state ${{ steps.p.outputs.state }}
       - name: Spot check sample
         if: steps.mode.outputs.mode == 'classify'
         run: python scripts/spot_check.py --source detections --n 50 --seed 1 --out-dir data/review/spot_check_latest
@@ -140,7 +160,7 @@ jobs:
             git add -f site/data data/output data/change/court_tracks_raw.json data/change/review_queue.csv \
                        data/change/validation_report.txt data/models/classifier_report.json data/review/spot_check_latest
           fi
-          git commit -m "Pipeline run (${{ steps.mode.outputs.mode }}): ${{ inputs.state }} offset ${{ inputs.offset }} limit ${{ inputs.limit }}" || echo "nothing to commit"
+          git commit -m "Pipeline run (${{ steps.mode.outputs.mode }}): ${{ steps.p.outputs.state }} offset ${{ steps.p.outputs.offset }} limit ${{ steps.p.outputs.limit }}" || echo "nothing to commit"
           git pull --rebase origin ${{ github.ref_name }}
           git push origin HEAD:${{ github.ref_name }}
 
