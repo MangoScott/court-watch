@@ -72,6 +72,7 @@ def test_sheets_train_classify(tmp_path):
     run(S / "03_make_crops.py", "--courts", courts_csv, "--chips-dir", chips, "--labels", labels,
         "--crops-dir", crops_dir, "--export")
     assert len(list((crops_dir / "train").glob("*/*.jpg"))) == 24
+    assert not (crops_dir / "train" / "unusable").exists()
 
     # train briefly (val split is by site, so with one site everything is train; that is fine for a smoke test)
     model = tmp_path / "classifier.pt"
@@ -86,7 +87,7 @@ def test_sheets_train_classify(tmp_path):
     rec = json.loads((det_out / "raw" / site_id / "2023.json").read_text())
     assert len(rec["courts"]) == 8
     c = rec["courts"][0]
-    assert c["class"] in ("tennis", "hybrid", "pickleball", "padel", "removed")
+    assert c["class"] in ("tennis", "hybrid", "pickleball", "padel", "removed", "unusable")
     assert "probs" in c and c["court_id"].startswith(site_id)
     assert all(0 <= v <= 1 for pt in c["obb"] for v in pt)
     # pickleball footprints carry unknown court counts

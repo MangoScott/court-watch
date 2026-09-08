@@ -113,3 +113,21 @@ def test_unknown_pickleball_count_is_not_invented():
     # roundtrip through dict form keeps None
     r2 = summarize_track(tracks_from_dicts([r])[0])
     assert r2["current_n_courts"] is None
+
+
+def test_class_counts_treats_nan_as_unknown():
+    rec = {"current_class": "pickleball", "current_n_courts": float("nan"), "needs_review": False}
+    counts = class_counts([rec])
+    assert counts["pickleball_courts"] == 0 and counts["pickleball_footprints_uncounted"] == 1
+
+
+def test_unusable_observation_masks_year_without_removal():
+    box = court_obb(0.3, 0.5, TENNIS_W, TENNIS_H)
+    d = {
+        2019: det(2019, [{"class": "tennis", "confidence": 0.9, "obb": box}]),
+        2021: det(2021, [{"class": "unusable", "confidence": 0.8, "obb": box}]),
+        2023: det(2023, [{"class": "hybrid", "confidence": 0.9, "obb": box}]),
+    }
+    (tr,) = track_site(d)
+    assert [(o.year, o.cls) for o in tr.observations] == [(2019, "tennis"), (2023, "hybrid")]
+    assert len(summarize_track(tr)["transitions"]) == 1

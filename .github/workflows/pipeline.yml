@@ -88,6 +88,9 @@ jobs:
           search_artifacts: true
           if_no_artifact_found: warn
 
+      - name: Restore committed files the artifact may have overwritten
+        run: git checkout -- data/validation data/labels 2>/dev/null || true
+
       - name: 1. OSM sites and court footprints
         run: python scripts/01_fetch_osm.py --state ${{ steps.p.outputs.state }} --use-cache || python scripts/01_fetch_osm.py --state ${{ steps.p.outputs.state }}
 
@@ -122,7 +125,7 @@ jobs:
         run: python scripts/03_make_crops.py --state ${{ steps.p.outputs.state }} --export
       - name: 4. Train classifier
         if: steps.mode.outputs.mode == 'classify'
-        run: python scripts/04_train_classifier.py --epochs 15
+        run: python scripts/04_train_classifier.py --epochs 25
       - name: 5. Classify every chip
         if: steps.mode.outputs.mode == 'classify'
         run: python scripts/05_detect.py --backend classifier --state ${{ steps.p.outputs.state }} --overwrite
@@ -150,6 +153,7 @@ jobs:
             !data/yolo
             !data/demo
             !data/labels
+            !data/validation
           retention-days: 90
           compression-level: 0
 

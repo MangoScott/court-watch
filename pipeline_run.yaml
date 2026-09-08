@@ -2,9 +2,9 @@
 # (.github/workflows/pipeline.yml also accepts the same values from the
 # "Run workflow" button). Each push that changes this file triggers one run.
 state: OH
-limit: 40          # sites to fetch imagery for this run, besides validation sites
+limit: 300         # sites to fetch imagery for this run, besides validation sites
 offset: 0          # skip this many sites first (chunked full-state runs)
 sheets: 30         # contact sheets to make when more labels are needed (20 crops each)
 min_labels: 150    # labeled crops required before training
 force_label: false # make new sheets even if enough labels exist
-run: 4             # bump to re-run with the same settings
+run: 5             # bump to re-run with the same settings

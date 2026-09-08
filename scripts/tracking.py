@@ -40,6 +40,10 @@ except ImportError:  # pragma: no cover
     from scripts.common import CLASSES, UNKNOWN, obb_norm_to_pixels  # type: ignore
 
 SUBDIVIDABLE = {"pickleball", "padel"}
+# A detection with this class means "this court could not be seen this year"
+# (trees, shadow, clouds). It masks the footprint for the year: no observation
+# is recorded and the absence is not treated as evidence of removal.
+UNUSABLE = "unusable"
 # Transitions that are physically unlikely; when the model reports one we keep
 # it but flag it, because it is more often a misclassification than a rebuild.
 REVERSION_TARGETS = {"tennis"}
@@ -128,9 +132,17 @@ def track_site(
         w, h = int(det.get("width", 512)), int(det.get("height", 512))
         source = det.get("source", "")
         imagery_date = det.get("imagery_date")
-        courts = [c for c in det.get("courts", []) if c.get("class") in CLASSES and c.get("obb")]
+        all_courts = [c for c in det.get("courts", []) if c.get("obb")]
+        courts = [c for c in all_courts if c.get("class") in CLASSES]
+        masks = [obb_polygon(c["obb"], w, h) for c in all_courts if c.get("class") == UNUSABLE]
         polys = [obb_polygon(c["obb"], w, h) for c in courts]
         used = [False] * len(courts)
+        masked: set[int] = set()   # track indices that are unobservable this year
+        for ti, tr in enumerate(tracks):
+            ref = tr.last_detected() or tr.last
+            ref_poly = obb_polygon(ref.obb, w, h)
+            if any(iou(ref_poly, m) >= iou_min or m.buffer(centroid_buffer_px).contains(ref_poly.centroid) for m in masks):
+                masked.add(ti)
 
         # 1. candidate matches per track
         for tr in tracks:
@@ -183,9 +195,9 @@ def track_site(
                 )],
             ))
 
-        # 3. tracks with no observation this year -> inferred removed
-        for tr in tracks:
-            if tr.last.year != year:
+        # 3. tracks with no observation this year -> inferred removed (unless masked)
+        for ti, tr in enumerate(tracks):
+            if tr.last.year != year and ti not in masked:
                 ref = tr.last_detected() or tr.last
                 tr.observations.append(Observation(
                     year=year, cls="removed", confidence=0.5, obb=ref.obb,
@@ -338,7 +350,7 @@ def class_counts(records: list[dict]) -> dict[str, Any]:
         counts[r["current_class"]] = counts.get(r["current_class"], 0) + 1
         if r["current_class"] == "pickleball":
             n = r.get("current_n_courts")
-            if n is None:
+            if n is None or (isinstance(n, float) and n != n):   # None, or NaN from a dataframe
                 pb_unknown += 1          # footprint is pickleball, individual count not determined
             else:
                 pb_courts += int(n or 1)

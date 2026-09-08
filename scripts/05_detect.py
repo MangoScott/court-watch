@@ -97,7 +97,7 @@ def run_classifier(chips: list[dict], det_dir: Path, weights: Path, courts_csv: 
                     probs.extend(torch.softmax(out, 1).tolist())
             for court, pts, pr in zip(courts, pts_list, probs):
                 k = max(range(len(pr)), key=pr.__getitem__)
-                cls = classes[k]
+                cls = classes[k]   # may be "unusable": court not visible this year (tracking skips it)
                 inside = all(0 <= x <= size and 0 <= y <= size for x, y in pts)
                 n_children = int(court.get("n_children") or 0)
                 n_overlay = int(court.get("n_overlay") or 0)

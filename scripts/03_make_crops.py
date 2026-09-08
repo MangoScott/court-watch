@@ -20,6 +20,8 @@ Two modes:
 
 ``--export``     Regenerate the crops for every labeled row into
                  data/crops/train/<class>/<crop_id>.jpg for 04_train_classifier.py.
+                 Rows labeled ``unknown`` go to class ``unusable`` so the model
+                 learns to abstain on trees, shadow and blur.
 
 Usage::
 
@@ -135,11 +137,13 @@ def make_sheets(picked: list[dict], out_dir: Path, chips_dir: Path) -> int:
 def export_training(labels: dict[str, dict], chips_dir: Path, courts: dict[str, list[dict]], out_dir: Path) -> dict:
     chips = {(c["site_id"], c["year"]): c for c in list_chips(chips_dir)}
     court_by_id = {court["court_id"]: court for cs in courts.values() for court in cs}
-    stats = {c: 0 for c in CLASSES}
+    stats = {c: 0 for c in CLASSES + ["unusable"]}
     stats["skipped"] = 0
     for cid, row in labels.items():
         cls = (row.get("class") or "").strip()
-        if cls not in CLASSES:
+        if cls == "unknown":
+            cls = "unusable"   # "cannot tell" crops teach the model to abstain
+        if cls not in CLASSES + ["unusable"]:
             stats["skipped"] += 1
             continue
         site_id, court_id, year = parse_crop_id(cid)
