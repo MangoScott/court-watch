@@ -10,6 +10,11 @@
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_3874385_-8297608/2011.json"
  },
  {
+  "site_id": "oh_3893715_-8425821",
+  "year": 2015,
+  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_3893715_-8425821/2015.json"
+ },
+ {
   "site_id": "oh_3895239_-8426873",
   "year": 2015,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_3895239_-8426873/2015.json"
@@ -135,6 +140,11 @@
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_3965804_-8419325/2015.json"
  },
  {
+  "site_id": "oh_3972079_-8403198",
+  "year": 2015,
+  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_3972079_-8403198/2015.json"
+ },
+ {
   "site_id": "oh_3973457_-8464993",
   "year": 2013,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_3973457_-8464993/2013.json"
@@ -200,6 +210,11 @@
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4005020_-8294298/2015.json"
  },
  {
+  "site_id": "oh_4005479_-8305111",
+  "year": 2019,
+  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4005479_-8305111/2019.json"
+ },
+ {
   "site_id": "oh_4007400_-8252048",
   "year": 2017,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4007400_-8252048/2017.json"
@@ -215,6 +230,11 @@
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4013351_-8298019/2015.json"
  },
  {
+  "site_id": "oh_4027723_-8290380",
+  "year": 2017,
+  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4027723_-8290380/2017.json"
+ },
+ {
   "site_id": "oh_4033545_-8199940",
   "year": 2021,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4033545_-8199940/2021.json"
@@ -228,25 +248,5 @@
   "site_id": "oh_4058311_-8419296",
   "year": 2023,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4058311_-8419296/2023.json"
- },
- {
-  "site_id": "oh_4066033_-8135405",
-  "year": 2011,
-  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4066033_-8135405/2011.json"
- },
- {
-  "site_id": "oh_4100378_-8072075",
-  "year": 2019,
-  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4100378_-8072075/2019.json"
- },
- {
-  "site_id": "oh_4131413_-8072959",
-  "year": 2019,
-  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4131413_-8072959/2019.json"
- },
- {
-  "site_id": "oh_4173393_-8123892",
-  "year": 2013,
-  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4173393_-8123892/2013.json"
  }
 ]
