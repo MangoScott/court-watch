@@ -1,29 +1,29 @@
 {
-  "val_acc": 0.6617647058823529,
-  "n_train": 978,
-  "n_val": 272,
+  "val_acc": 0.6795366795366795,
+  "n_train": 976,
+  "n_val": 259,
   "class_counts": {
-    "hybrid": 171,
-    "pickleball": 124,
-    "removed": 143,
-    "tennis": 516,
+    "hybrid": 170,
+    "pickleball": 114,
+    "removed": 141,
+    "tennis": 514,
     "unusable": 296
   },
   "per_class": {
     "tennis": {
       "support": 102,
-      "precision": 0.776,
-      "recall": 0.647
+      "precision": 0.703,
+      "recall": 0.814
     },
     "hybrid": {
-      "support": 17,
-      "precision": 0.345,
-      "recall": 0.588
+      "support": 16,
+      "precision": 0.154,
+      "recall": 0.125
     },
     "pickleball": {
-      "support": 46,
-      "precision": 0.72,
-      "recall": 0.783
+      "support": 36,
+      "precision": 0.676,
+      "recall": 0.694
     },
     "padel": {
       "support": 0,
@@ -31,14 +31,14 @@
       "recall": null
     },
     "removed": {
-      "support": 17,
-      "precision": 0.3,
-      "recall": 0.529
+      "support": 15,
+      "precision": 0.556,
+      "recall": 0.333
     },
     "unusable": {
       "support": 90,
-      "precision": 0.756,
-      "recall": 0.656
+      "precision": 0.744,
+      "recall": 0.678
     }
   }
 }
