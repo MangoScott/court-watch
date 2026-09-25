@@ -1,5 +1,6 @@
 state,county,footprints,current_tennis,current_hybrid,current_pickleball,current_padel,current_removed,current_unknown,pickleball_courts,pickleball_footprints_uncounted,ever_tennis,tennis_to_hybrid,tennis_or_hybrid_to_pickleball,tennis_or_hybrid_to_padel,tennis_or_hybrid_to_removed,needs_review,reviewed_courts
 OH,Adams,2,2,0,0,0,0,0,0,0,2,1,0,0,0,1,0
+OH,Ashtabula,24,17,3,0,0,4,0,0,0,22,5,0,0,4,14,0
 OH,Athens,20,10,1,2,0,7,0,0,2,13,5,2,0,2,8,0
 OH,Auglaize,32,24,0,2,1,5,0,4,0,27,0,1,1,2,15,0
 OH,Belmont,12,3,2,2,0,5,0,3,0,10,2,0,0,7,9,0
@@ -50,7 +51,7 @@ OH,Richland,3,3,0,0,0,0,0,0,0,3,0,0,0,2,3,0
 OH,Ross,12,9,1,0,0,2,0,0,0,12,6,0,0,3,8,0
 OH,Scioto,52,30,6,10,0,6,0,10,0,44,11,2,0,13,33,0
 OH,Shelby,44,27,4,9,0,4,0,9,0,42,3,9,0,4,16,0
-OH,Trumbull,1,0,0,0,0,1,0,0,0,1,0,0,0,1,1,0
+OH,Trumbull,29,13,1,5,0,10,0,9,1,27,0,5,0,10,19,0
 OH,Tuscarawas,28,20,1,1,0,6,0,0,1,26,6,0,1,4,13,0
 OH,Union,36,26,2,3,0,5,0,2,1,31,9,0,0,4,25,0
 OH,Vinton,6,3,3,0,0,0,0,0,0,6,6,0,0,2,6,0
