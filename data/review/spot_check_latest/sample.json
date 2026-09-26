@@ -230,6 +230,11 @@
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4013351_-8298019/2015.json"
  },
  {
+  "site_id": "oh_4027723_-8290380",
+  "year": 2017,
+  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4027723_-8290380/2017.json"
+ },
+ {
   "site_id": "oh_4033545_-8199940",
   "year": 2021,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4033545_-8199940/2021.json"
@@ -243,10 +248,5 @@
   "site_id": "oh_4058311_-8419296",
   "year": 2023,
   "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4058311_-8419296/2023.json"
- },
- {
-  "site_id": "oh_4132931_-8071909",
-  "year": 2023,
-  "file": "/home/runner/work/court-watch/court-watch/data/detections/raw/oh_4132931_-8071909/2023.json"
  }
 ]
