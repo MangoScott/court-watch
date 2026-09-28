@@ -12,18 +12,18 @@
   "per_class": {
     "tennis": {
       "support": 102,
-      "precision": 0.8,
-      "recall": 0.627
+      "precision": 0.675,
+      "recall": 0.755
     },
     "hybrid": {
       "support": 17,
-      "precision": 0.286,
-      "recall": 0.588
+      "precision": 0.074,
+      "recall": 0.118
     },
     "pickleball": {
       "support": 46,
-      "precision": 0.615,
-      "recall": 0.696
+      "precision": 0.871,
+      "recall": 0.587
     },
     "padel": {
       "support": 0,
@@ -32,13 +32,13 @@
     },
     "removed": {
       "support": 17,
-      "precision": 0.462,
-      "recall": 0.353
+      "precision": 0.522,
+      "recall": 0.706
     },
     "unusable": {
       "support": 90,
-      "precision": 0.728,
-      "recall": 0.744
+      "precision": 0.792,
+      "recall": 0.678
     }
   }
 }
