@@ -170,7 +170,7 @@ oh_4008854_-8295902:c006,oh_4008854_-8295902,tennis,pickleball,2013,2015,0.344,,
 oh_4012358_-8304591:c005,oh_4012358_-8304591,tennis,hybrid,2013,2015,0.345,1,True,low_confidence
 oh_4031437_-8417275:c011,oh_4031437_-8417275,pickleball,tennis,2011,2013,0.345,1,True,low_confidence;reversion
 oh_3952096_-8473522:c002,oh_3952096_-8473522,tennis,removed,2011,2013,0.346,1,True,low_confidence
-oh_3963546_-8416232:c006,oh_3963546_-8416232,tennis,pickleball,2017,2019,0.346,,True,low_confidence
+oh_3963546_-8416232:c002,oh_3963546_-8416232,tennis,pickleball,2017,2019,0.346,1,True,low_confidence
 oh_4001424_-8278173:c001,oh_4001424_-8278173,tennis,removed,2011,2015,0.346,1,True,low_confidence
 oh_4040671_-8294453:c001,oh_4040671_-8294453,tennis,removed,2015,2019,0.346,1,True,low_confidence
 oh_3907580_-8412721:c002,oh_3907580_-8412721,removed,tennis,2017,2019,0.347,1,True,low_confidence;reversion
@@ -182,7 +182,7 @@ oh_3910198_-8438140:c001,oh_3910198_-8438140,pickleball,hybrid,2020,2021,0.348,1
 oh_3910198_-8438140:c001,oh_3910198_-8438140,hybrid,tennis,2021,2022,0.348,1,True,low_confidence;reversion
 oh_3952096_-8473522:c001,oh_3952096_-8473522,tennis,removed,2011,2013,0.348,1,True,low_confidence
 oh_3957610_-8346969:c001,oh_3957610_-8346969,removed,pickleball,2015,2017,0.348,1,True,low_confidence;reversion
-oh_3963546_-8416232:c005,oh_3963546_-8416232,tennis,pickleball,2017,2019,0.348,,True,low_confidence
+oh_3963546_-8416232:c004,oh_3963546_-8416232,tennis,pickleball,2017,2019,0.348,1,True,low_confidence
 oh_3964349_-8418824:c001,oh_3964349_-8418824,tennis,removed,2019,2021,0.348,1,True,low_confidence
 oh_3942055_-8446925:c002,oh_3942055_-8446925,hybrid,removed,2015,2019,0.349,1,True,low_confidence
 oh_4004258_-8281783:c001,oh_4004258_-8281783,pickleball,hybrid,2021,2023,0.349,1,True,low_confidence
@@ -273,7 +273,7 @@ oh_3920473_-8368135:c001,oh_3920473_-8368135,tennis,removed,2017,2019,0.375,1,Tr
 oh_3920473_-8368135:c001,oh_3920473_-8368135,removed,hybrid,2019,2023,0.375,1,True,low_confidence;reversion
 oh_3937599_-8456289:c002,oh_3937599_-8456289,pickleball,tennis,2017,2019,0.375,1,True,low_confidence;reversion
 oh_3962474_-8420512:c001,oh_3962474_-8420512,hybrid,tennis,2021,2023,0.375,1,True,low_confidence;reversion
-oh_3963546_-8416232:c002,oh_3963546_-8416232,tennis,pickleball,2015,2017,0.375,1,True,low_confidence
+oh_3963546_-8416232:c003,oh_3963546_-8416232,tennis,pickleball,2015,2017,0.375,1,True,low_confidence
 oh_3966329_-8414936:c002,oh_3966329_-8414936,hybrid,removed,2021,2023,0.375,1,True,low_confidence
 oh_4026429_-8100509:c001,oh_4026429_-8100509,removed,hybrid,2021,2023,0.375,1,True,low_confidence;reversion
 oh_4044073_-8402991:c003,oh_4044073_-8402991,tennis,pickleball,2019,2021,0.375,1,True,low_confidence
@@ -1327,7 +1327,7 @@ oh_3972696_-8259509:c005,oh_3972696_-8259509,hybrid,tennis,2013,2015,0.606,1,Tru
 oh_3996274_-8287019:c003,oh_3996274_-8287019,removed,pickleball,2015,2019,0.606,1,True,reversion
 oh_3871971_-8304723:c002,oh_3871971_-8304723,hybrid,tennis,2016,2017,0.607,1,True,reversion
 oh_3952096_-8473522:c008,oh_3952096_-8473522,hybrid,tennis,2021,2023,0.607,1,True,reversion
-oh_3963546_-8416232:c001,oh_3963546_-8416232,removed,pickleball,2017,2019,0.607,,True,reversion
+oh_3963546_-8416232:c001,oh_3963546_-8416232,removed,pickleball,2017,2019,0.607,1,True,reversion
 oh_4031252_-8414912:c001,oh_4031252_-8414912,removed,tennis,2011,2015,0.607,1,True,reversion
 oh_3973220_-8413772:c001,oh_3973220_-8413772,removed,tennis,2013,2015,0.608,1,True,reversion
 oh_3919813_-8432993:c001,oh_3919813_-8432993,hybrid,tennis,2013,2019,0.609,1,True,reversion

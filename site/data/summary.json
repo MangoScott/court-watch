@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-10T15:28:18.712171+00:00",
+  "generated_at": "2026-10-10T21:06:30.889283+00:00",
   "state": "OH",
   "n_sites": 1512,
   "n_courts": 4055,
@@ -10,8 +10,8 @@
   "current_padel": 4,
   "current_removed": 614,
   "current_unknown": 0,
-  "pickleball_courts": 349,
-  "pickleball_footprints_uncounted": 114,
+  "pickleball_courts": 355,
+  "pickleball_footprints_uncounted": 108,
   "ever_tennis": 3610,
   "tennis_to_hybrid": 714,
   "tennis_or_hybrid_to_pickleball": 223,
