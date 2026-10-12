@@ -1,10 +1,10 @@
 {
-  "val_acc": 0.676923076923077,
+  "val_acc": 0.6616541353383458,
   "n_train": 976,
-  "n_val": 260,
+  "n_val": 266,
   "class_counts": {
     "hybrid": 171,
-    "pickleball": 114,
+    "pickleball": 120,
     "removed": 141,
     "tennis": 514,
     "unusable": 296
@@ -17,13 +17,13 @@
     },
     "hybrid": {
       "support": 17,
-      "precision": 0.154,
+      "precision": 0.105,
       "recall": 0.118
     },
     "pickleball": {
-      "support": 36,
+      "support": 42,
       "precision": 0.676,
-      "recall": 0.694
+      "recall": 0.595
     },
     "padel": {
       "support": 0,
