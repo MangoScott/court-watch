@@ -16,10 +16,10 @@ name: Run pipeline
 
 on:
   push:
-    branches: [main, claude/court-watch-tennis-tracking-e5zstu]   # working branch: still the default branch, where the schedule runs
+    branches: [main, claude/court-watch-tennis-tracking-e5zstu]   # working branch: still the default branch
     paths: [pipeline_run.yaml]
-  schedule:
-    - cron: "17 */4 * * *"   # every 4 hours: fetch the next chunk of sites and re-run
+  # Scheduled runs are turned off; use the "Run workflow" button or edit
+  # pipeline_run.yaml to run the pipeline on demand.
   workflow_dispatch:
     inputs:
       state:
